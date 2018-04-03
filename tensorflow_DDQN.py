@@ -2,6 +2,8 @@ import tensorflow as tf
 import numpy as np
 import random
 from collections import deque
+from tensorflow.python import debug as tf_debug
+
 
 # Hyper Parameters:
 FRAME_PER_ACTION = 1
@@ -46,7 +48,8 @@ class BrainDQN:
         # saving and loading networks
         self.saver = tf.train.Saver()
         self.session = tf.InteractiveSession()
-        self.session.run(tf.initialize_all_variables())
+        self.session.run(tf.global_variables_initializer())
+        self.session.run(tf.local_variables_initializer())
         checkpoint = tf.train.get_checkpoint_state("saved_networks")
         if checkpoint and checkpoint.model_checkpoint_path:
             self.saver.restore(self.session, checkpoint.model_checkpoint_path)
@@ -55,20 +58,20 @@ class BrainDQN:
             print("Could not find old network weights")
 
     def createQNetwork(self):
-        W_fc1 = self.weight_variable([141, 80])
-        b_fc1 = self.bias_variable([80])
+        W_fc1 = self.weight_variable([141, 80], "fc1")
+        b_fc1 = self.bias_variable([80], "fc1")
 
-        W_fc2 = self.weight_variable([80, 80])
-        b_fc2 = self.bias_variable([80])
+        W_fc2 = self.weight_variable([80, 80], "fc2")
+        b_fc2 = self.bias_variable([80], "fc2")
 
-        W_fc3 = self.weight_variable([80, self.actions])
-        b_fc3 = self.bias_variable([self.actions])
+        W_fc3 = self.weight_variable([80, self.actions], "fc3")
+        b_fc3 = self.bias_variable([self.actions], "fc3")
 
         # input layer
         stateInput = tf.placeholder("float", [None, 141])
 
-        h_fc1 = tf.nn.relu(tf.matmul(stateInput, W_fc1) + b_fc1)
-        h_fc2 = tf.nn.relu(tf.matmul(h_fc1, W_fc2) + b_fc2)
+        h_fc1 = tf.nn.relu(tf.nn.bias_add(tf.matmul(stateInput, W_fc1), b_fc1))
+        h_fc2 = tf.nn.relu(tf.nn.bias_add(tf.matmul(h_fc1, W_fc2), b_fc2))
 
         # Q Value layer
         QValue = tf.matmul(h_fc2, W_fc3) + b_fc3
@@ -170,21 +173,23 @@ class BrainDQN:
         return action
 
     def setInitState(self, observation):
+        # init_g = tf.global_variables_initializer()
+        # init_l = tf.local_variables_initializer()
+        # with tf.Session() as sess:
+        #     with tf_debug.LocalCLIDebugWrapperSession(sess) as sess:
+        #         sess.run(init_g)
+        #         sess.run(init_l)
         self.currentState = np.stack((observation, observation, observation, observation), axis=0)
 
-    def weight_variable(self, shape):
-        initial = tf.truncated_normal(shape, stddev=0.01)
-        return tf.Variable(initial)
+    def weight_variable(self, shape, name):
+        with tf.variable_scope(name):
+            initial = tf.truncated_normal(shape, stddev=0.01)
+            return tf.Variable(initial)
 
-    def bias_variable(self, shape):
-        initial = tf.constant(0.01, shape=shape)
-        return tf.Variable(initial)
-
-    def conv2d(self, x, W, stride):
-        return tf.nn.conv2d(x, W, strides=[1, stride, stride, 1], padding="SAME")
-
-    def max_pool_2x2(self, x):
-        return tf.nn.max_pool(x, ksize=[1, 2, 2, 1], strides=[1, 2, 2, 1], padding="SAME")
+    def bias_variable(self, shape, name):
+        with tf.variable_scope(name):
+            initial = tf.constant(0.01, shape=shape)
+            return tf.Variable(initial)
 
 
 def playFlappyBird():
