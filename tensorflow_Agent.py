@@ -67,9 +67,9 @@ class tensorflow_agent(object):
 
     def playAction(self):
         self.action = self.brain.getAction()
-        print("self.action = self.brain.getAction()")
-        action_name = self.actionMap.actionMap[self.action]
+        action_name = self.actionMap.actionMap[np.argmax(self.action)]
         self.cc.commandCall(action_name)
+
 
     def getObservation(self):
         my = self.frameData.getCharacter(self.player)
@@ -211,14 +211,14 @@ class tensorflow_agent(object):
                 # reward = currentOppHp - lastOppHp
                 self.reward = abs(self.nonDelay.getCharacter(not self.player).getHp()) - self.lastHp
                 self.R += self.reward
-                print(self.reward)
+                print("The reward is: ", self.reward)
                 return self.reward
 
             elif self.AgentType == 1:  # DiffenceType
                 # self.reward = SubPoint - (currentMyHp - lastMyHp )
                 self.reward = self.SubPoint - (abs(self.nonDelay.getCharacter(self.player).getHp()) - self.lastHp)
                 self.R += self.reward
-                print(self.reward)
+                print("The reward is: ", self.reward)
                 return self.reward
 
         else:
@@ -274,11 +274,10 @@ class tensorflow_agent(object):
             state = self.getObservation()
             self.brain.setInitState(tuple(state))
             self.setLastHp()
-            print("before playaction")
             self.playAction()
-            print("after playaction")
 
         elif self.currentFrameNum > 3400 and self.isFinishd == 0:
+            print("self.currentFrameNum > 3400 and self.isFinishd == 0:")
             reward = self.makeReward(1)
             state = self.getObservation()
             self.playAction()
@@ -287,13 +286,14 @@ class tensorflow_agent(object):
 
         elif self.ableAction():
             reward = self.makeReward(0)
-            print(reward)
+            print("\n")
             state = self.getObservation()
             self.setLastHp()
             self.playAction()
+            print("before barin.setperception")
             self.brain.setPerception(state, self.action, reward, False)
 
-        print(self.countProcess)
+        # print("The countProcess: ", self.countProcess)
         self.countProcess += 1
 
         # nextObservation = self.getObservation()

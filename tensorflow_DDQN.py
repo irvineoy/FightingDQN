@@ -47,9 +47,10 @@ class BrainDQN:
 
         # saving and loading networks
         self.saver = tf.train.Saver()
-        self.session = tf.InteractiveSession()
+        self.session = tf.Session()
         self.session.run(tf.global_variables_initializer())
         self.session.run(tf.local_variables_initializer())
+        self.copyTargetQNetwork()
         checkpoint = tf.train.get_checkpoint_state("saved_networks")
         if checkpoint and checkpoint.model_checkpoint_path:
             self.saver.restore(self.session, checkpoint.model_checkpoint_path)
@@ -100,8 +101,10 @@ class BrainDQN:
         reward_batch = [data[2] for data in minibatch]
         nextState_batch = [data[3] for data in minibatch]
 
+        print("before step 2")
         # Step 2: calculate y
         y_batch = []
+        print("before Q value batch")
         QValue_batch = self.QValueT.eval(feed_dict={self.stateInputT: nextState_batch})
         for i in range(0, BATCH_SIZE):
             terminal = minibatch[i][4]
@@ -110,6 +113,7 @@ class BrainDQN:
             else:
                 y_batch.append(reward_batch[i] + GAMMA * np.max(QValue_batch[i]))
 
+        print("before train step run")
         self.trainStep.run(feed_dict={
             self.yInput: y_batch,
             self.actionInput: action_batch,
@@ -125,14 +129,13 @@ class BrainDQN:
 
     def setPerception(self, nextObservation, action, reward, terminal):
         # newState = np.append(nextObservation,self.currentState[:,:,1:],axis = 2)
-        newState = np.append(self.currentState[:, 1:], nextObservation, axis=2)
+        newState = np.append(self.currentState[1:, :], [nextObservation], axis=0)
         self.replayMemory.append((self.currentState, action, reward, newState, terminal))
         if len(self.replayMemory) > REPLAY_MEMORY:
             self.replayMemory.popleft()
         if self.timeStep > OBSERVE:
             # Train the network
             self.trainQNetwork()
-
         # print info
         state = ""
         if self.timeStep <= OBSERVE:
@@ -149,11 +152,8 @@ class BrainDQN:
         self.timeStep += 1
 
     def getAction(self):
-        print("before Qvalue eval")
-        with tf.Session() as sess:
-            # QValue = self.QValue.eval(feed_dict={self.stateInput: self.currentState})[0]
-            QValue = sess.run(self.QValue, feed_dict={self.stateInput: self.currentState})[0]
-        print("The Qvalue is ", QValue)
+        # QValue = self.QValue.eval(feed_dict={self.stateInput: self.currentState})[0]
+        QValue = self.session.run(self.QValue, feed_dict={self.stateInput: self.currentState})[0]
         action = np.zeros(self.actions)
         action_index = 0
         if self.timeStep % FRAME_PER_ACTION == 0:
