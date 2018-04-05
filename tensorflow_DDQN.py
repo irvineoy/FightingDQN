@@ -59,7 +59,7 @@ class BrainDQN:
             print("Could not find old network weights")
 
     def createQNetwork(self):
-        W_fc1 = self.weight_variable([141, 80], "fc1")
+        W_fc1 = self.weight_variable([141*4, 80], "fc1")
         b_fc1 = self.bias_variable([80], "fc1")
 
         W_fc2 = self.weight_variable([80, 80], "fc2")
@@ -69,9 +69,9 @@ class BrainDQN:
         b_fc3 = self.bias_variable([self.actions], "fc3")
 
         # input layer
-        stateInput = tf.placeholder("float", [None, 141])
+        stateInput = tf.placeholder("float", [None, 141, 4])
 
-        h_fc1 = tf.nn.relu(tf.nn.bias_add(tf.matmul(stateInput, W_fc1), b_fc1))
+        h_fc1 = tf.nn.relu(tf.nn.bias_add(tf.matmul(tf.reshape(stateInput, [-1, 141*4]), W_fc1), b_fc1))
         h_fc2 = tf.nn.relu(tf.nn.bias_add(tf.matmul(h_fc1, W_fc2), b_fc2))
 
         # Q Value layer
@@ -99,13 +99,11 @@ class BrainDQN:
         state_batch = [data[0] for data in minibatch]
         action_batch = [data[1] for data in minibatch]
         reward_batch = [data[2] for data in minibatch]
-        nextState_batch = [data[3] for data in minibatch]
+        nextState_batch = [list(data[3]) for data in minibatch]
 
-        print("before step 2")
         # Step 2: calculate y
         y_batch = []
-        print("before Q value batch")
-        QValue_batch = self.QValueT.eval(feed_dict={self.stateInputT: nextState_batch})
+        QValue_batch = self.session.run(self.QValueT, feed_dict={self.stateInputT: nextState_batch})
         for i in range(0, BATCH_SIZE):
             terminal = minibatch[i][4]
             if terminal:
@@ -113,8 +111,7 @@ class BrainDQN:
             else:
                 y_batch.append(reward_batch[i] + GAMMA * np.max(QValue_batch[i]))
 
-        print("before train step run")
-        self.trainStep.run(feed_dict={
+        self.session.run(self.trainStep, feed_dict={
             self.yInput: y_batch,
             self.actionInput: action_batch,
             self.stateInput: state_batch
@@ -129,7 +126,7 @@ class BrainDQN:
 
     def setPerception(self, nextObservation, action, reward, terminal):
         # newState = np.append(nextObservation,self.currentState[:,:,1:],axis = 2)
-        newState = np.append(self.currentState[1:, :], [nextObservation], axis=0)
+        newState = np.append(self.currentState[:, 1:], np.reshape(nextObservation, (141, 1)), axis=1)
         self.replayMemory.append((self.currentState, action, reward, newState, terminal))
         if len(self.replayMemory) > REPLAY_MEMORY:
             self.replayMemory.popleft()
@@ -153,7 +150,7 @@ class BrainDQN:
 
     def getAction(self):
         # QValue = self.QValue.eval(feed_dict={self.stateInput: self.currentState})[0]
-        QValue = self.session.run(self.QValue, feed_dict={self.stateInput: self.currentState})[0]
+        QValue = self.session.run(self.QValue, feed_dict={self.stateInput: [self.currentState]})[0]
         action = np.zeros(self.actions)
         action_index = 0
         if self.timeStep % FRAME_PER_ACTION == 0:
@@ -179,7 +176,7 @@ class BrainDQN:
         #     with tf_debug.LocalCLIDebugWrapperSession(sess) as sess:
         #         sess.run(init_g)
         #         sess.run(init_l)
-        self.currentState = np.stack((observation, observation, observation, observation), axis=0)
+        self.currentState = np.stack((observation, observation, observation, observation), axis=1)
 
     def weight_variable(self, shape, name):
         with tf.variable_scope(name):

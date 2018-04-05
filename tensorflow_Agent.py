@@ -286,11 +286,10 @@ class tensorflow_agent(object):
 
         elif self.ableAction():
             reward = self.makeReward(0)
-            print("\n")
             state = self.getObservation()
             self.setLastHp()
             self.playAction()
-            print("before barin.setperception")
+            print("\n")
             self.brain.setPerception(state, self.action, reward, False)
 
         # print("The countProcess: ", self.countProcess)
