@@ -14,9 +14,8 @@ class tensorflow_agent(object):
         self.actionMap = ActionMap()
         self.R = 0  # total reward in a round
         self.action = 0
-        self.AgentType = 0  # AgentType  0 -> Attack, 1 -> Defence
         self.MaxPoint = 120  # max projectile damage (ver 4.10)
-        self.SubPoint = 40  # max damage in usual action (ver 4.10)
+        self.SubPoint = 0  # max damage in usual action (ver 4.10)
         self.countProcess = 0
         self.frameData = None
         self.nonDelay = None
@@ -25,10 +24,12 @@ class tensorflow_agent(object):
         self.cc = None
         self.player = None
         self.simulator = None
-        self.lastHp = None
+        self.lastHp_opp = None
+        self.lastHp_my = None
         self.isGameJustStarted = None
         self.currentRoundNum = None
         self.isFinishd = None
+        self.reward = None
 
     def close(self):
         pass
@@ -207,19 +208,14 @@ class tensorflow_agent(object):
 
     def makeReward(self, finishRound):
         if finishRound == 0:
-            if self.AgentType == 0:  # AttackType
-                # reward = currentOppHp - lastOppHp
-                self.reward = abs(self.nonDelay.getCharacter(not self.player).getHp()) - self.lastHp
-                self.R += self.reward
-                print("The reward is: ", self.reward)
-                return self.reward
+            # Defence reward = SubPoint - (currentMyHp - lastMyHp )
+            # Attack reward = currentOppHp - lastOppHp
+            self.reward = self.SubPoint - (abs(self.nonDelay.getCharacter(self.player).getHp()) - self.lastHp_my)
+            self.reward += abs(self.nonDelay.getCharacter(not self.player).getHp()) - self.lastHp_opp
 
-            elif self.AgentType == 1:  # DiffenceType
-                # self.reward = SubPoint - (currentMyHp - lastMyHp )
-                self.reward = self.SubPoint - (abs(self.nonDelay.getCharacter(self.player).getHp()) - self.lastHp)
-                self.R += self.reward
-                print("The reward is: ", self.reward)
-                return self.reward
+            self.R += self.reward
+            print("The reward is: ", self.reward)
+            return self.reward
 
         else:
             if abs(self.nonDelay.getCharacter(self.player).getHp()) < abs(
@@ -232,10 +228,8 @@ class tensorflow_agent(object):
                 return 0
 
     def setLastHp(self):
-        if self.AgentType == 0:  # Attack Type
-            self.lastHp = abs(self.nonDelay.getCharacter(not self.player).getHp())
-        elif self.AgentType == 1:  # Defence Type
-            self.lastHp = abs(self.nonDelay.getCharacter(self.player).getHp())
+        self.lastHp_opp = abs(self.nonDelay.getCharacter(not self.player).getHp())
+        self.lastHp_my = abs(self.nonDelay.getCharacter(self.player).getHp())
 
     def ableAction(self):
         if self.nonDelay.getCharacter(self.player).isControl() == True and self.isFinishd == 0:
@@ -276,7 +270,7 @@ class tensorflow_agent(object):
             self.setLastHp()
             self.playAction()
 
-        elif self.currentFrameNum > 3400 and self.isFinishd == 0:
+        elif self.currentFrameNum > 3550 and self.isFinishd == 0:
             print("self.currentFrameNum > 3400 and self.isFinishd == 0:")
             reward = self.makeReward(1)
             state = self.getObservation()

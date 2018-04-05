@@ -8,12 +8,12 @@ from tensorflow.python import debug as tf_debug
 # Hyper Parameters:
 FRAME_PER_ACTION = 1
 GAMMA = 0.99  # decay rate of past observations
-OBSERVE = 20.  # timesteps to observe before training
+OBSERVE = 30.  # timesteps to observe before training
 EXPLORE = 200000.  # frames over which to anneal epsilon
 FINAL_EPSILON = 0  # 0.001 # final value of epsilon
 INITIAL_EPSILON = 0  # 0.01 # starting value of epsilon
 REPLAY_MEMORY = 50000  # number of previous transitions to remember
-BATCH_SIZE = 10  # size of minibatch
+BATCH_SIZE = 20  # size of minibatch
 UPDATE_TIME = 100
 
 try:
@@ -46,7 +46,7 @@ class BrainDQN:
         self.createTrainingMethod()
 
         # saving and loading networks
-        self.saver = tf.train.Saver()
+        self.saver = tf.train.Saver(max_to_keep=4)
         self.session = tf.Session()
         self.session.run(tf.global_variables_initializer())
         self.session.run(tf.local_variables_initializer())
@@ -59,13 +59,13 @@ class BrainDQN:
             print("Could not find old network weights")
 
     def createQNetwork(self):
-        W_fc1 = self.weight_variable([141*4, 80], "fc1")
-        b_fc1 = self.bias_variable([80], "fc1")
+        W_fc1 = self.weight_variable([141*4, 1024], "fc1")
+        b_fc1 = self.bias_variable([1024], "fc1")
 
-        W_fc2 = self.weight_variable([80, 80], "fc2")
-        b_fc2 = self.bias_variable([80], "fc2")
+        W_fc2 = self.weight_variable([1024, 1024], "fc2")
+        b_fc2 = self.bias_variable([1024], "fc2")
 
-        W_fc3 = self.weight_variable([80, self.actions], "fc3")
+        W_fc3 = self.weight_variable([1024, self.actions], "fc3")
         b_fc3 = self.bias_variable([self.actions], "fc3")
 
         # input layer
@@ -118,8 +118,8 @@ class BrainDQN:
         })
 
         # save network every 100000 iteration
-        if self.timeStep % 10000 == 0:
-            self.saver.save(self.session, 'saved_networks/' + 'network' + '-dqn', global_step=self.timeStep)
+        if self.timeStep % 3000 == 0:
+            self.saver.save(self.session, 'saved_networks/' + 'network' + '-ddqn', global_step=self.timeStep)
 
         if self.timeStep % UPDATE_TIME == 0:
             self.copyTargetQNetwork()
@@ -188,24 +188,3 @@ class BrainDQN:
             initial = tf.constant(0.01, shape=shape)
             return tf.Variable(initial)
 
-
-def playFlappyBird():
-    # Step 1: init BrainDQN
-    actions = 40
-    brain = BrainDQN(actions)
-    # Step 2: init Flappy Bird Game
-    flappyBird = game.GameState()
-    # Step 3: play game
-    # Step 3.1: obtain init state
-    action0 = np.array([1, 0])  # do nothing
-    observation0, reward0, terminal = flappyBird.frame_step(action0)
-    observation0 = cv2.cvtColor(cv2.resize(observation0, (80, 80)), cv2.COLOR_BGR2GRAY)
-    ret, observation0 = cv2.threshold(observation0, 1, 255, cv2.THRESH_BINARY)
-    brain.setInitState(observation0)
-
-    # Step 3.2: run the game
-    while 1 != 0:
-        action = brain.getAction()
-        nextObservation, reward, terminal = flappyBird.frame_step(action)
-        nextObservation = preprocess(nextObservation)
-        brain.setPerception(nextObservation, action, reward, terminal)

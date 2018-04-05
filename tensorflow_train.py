@@ -40,7 +40,7 @@ def main_process():
 
 args = sys.argv
 argc = len(args)
-GAME_NUM = 1
+GAME_NUM = 10000
 gateway = JavaGateway(gateway_parameters=GatewayParameters(port=4242),
                       callback_server_parameters=CallbackServerParameters());
 manager = gateway.entry_point
