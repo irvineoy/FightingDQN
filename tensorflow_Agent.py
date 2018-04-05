@@ -2,6 +2,7 @@ from py4j.java_gateway import get_field
 from tensorflow_DDQN import BrainDQN
 from TrainModule import ActionMap
 import numpy as np
+import os
 # import crash_on_ipy
 # import ipdb;ipdb.set_trace()
 actions = 40
@@ -43,6 +44,13 @@ class tensorflow_agent(object):
 
     # please define this method when you use FightingICE version 3.20 or later
     def roundEnd(self, x, y, z):
+        if os.path.isfile('./saved_networks/battleResult.txt') == False:
+            with open('./saved_networks/battleResult.txt', 'w') as file:
+                file.write('')
+        with open('./saved_networks/battleResult.txt', 'a') as file:
+            file.write("The current step is: " + str(self.brain.session.run(self.brain.timeStep)))
+            file.write("  frame number: " + str(z) + "  p1: " + str(x) + "  p2: " + str(y))
+            file.write("\n")
         print(x)
         print(y)
         print(z)
@@ -69,6 +77,7 @@ class tensorflow_agent(object):
     def playAction(self):
         self.action = self.brain.getAction()
         action_name = self.actionMap.actionMap[np.argmax(self.action)]
+        print("current action is: ", action_name)
         self.cc.commandCall(action_name)
 
 
@@ -211,7 +220,7 @@ class tensorflow_agent(object):
             # Defence reward = SubPoint - (currentMyHp - lastMyHp )
             # Attack reward = currentOppHp - lastOppHp
             self.reward = self.SubPoint - (abs(self.nonDelay.getCharacter(self.player).getHp()) - self.lastHp_my)
-            self.reward += abs(self.nonDelay.getCharacter(not self.player).getHp()) - self.lastHp_opp
+            self.reward += 2 * (abs(self.nonDelay.getCharacter(not self.player).getHp()) - self.lastHp_opp)
 
             self.R += self.reward
             print("The reward is: ", self.reward)
@@ -271,7 +280,6 @@ class tensorflow_agent(object):
             self.playAction()
 
         elif self.currentFrameNum > 3550 and self.isFinishd == 0:
-            print("self.currentFrameNum > 3400 and self.isFinishd == 0:")
             reward = self.makeReward(1)
             state = self.getObservation()
             self.playAction()
