@@ -16,7 +16,7 @@ class tensorflow_agent(object):
         self.R = 0  # total reward in a round
         self.action = 0
         self.MaxPoint = 120  # max projectile damage (ver 4.10)
-        self.SubPoint = 0  # max damage in usual action (ver 4.10)
+        self.SubPoint = 40  # max damage in usual action (ver 4.10)
         self.countProcess = 0
         self.frameData = None
         self.nonDelay = None
@@ -220,7 +220,7 @@ class tensorflow_agent(object):
             # Defence reward = SubPoint - (currentMyHp - lastMyHp )
             # Attack reward = currentOppHp - lastOppHp
             self.reward = self.SubPoint - (abs(self.nonDelay.getCharacter(self.player).getHp()) - self.lastHp_my)
-            self.reward += 2 * (abs(self.nonDelay.getCharacter(not self.player).getHp()) - self.lastHp_opp)
+            self.reward += 1 * (abs(self.nonDelay.getCharacter(not self.player).getHp()) - self.lastHp_opp)
 
             self.R += self.reward
             print("The reward is: ", self.reward)
@@ -279,7 +279,7 @@ class tensorflow_agent(object):
             self.setLastHp()
             self.playAction()
 
-        elif self.currentFrameNum > 3550 and self.isFinishd == 0:
+        elif self.currentFrameNum > 3570 and self.isFinishd == 0:
             reward = self.makeReward(1)
             state = self.getObservation()
             self.playAction()

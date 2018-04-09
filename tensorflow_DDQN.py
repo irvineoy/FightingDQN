@@ -6,15 +6,18 @@ from tensorflow.python import debug as tf_debug
 
 
 # Hyper Parameters:
+# Todo: change the GAMMA
 FRAME_PER_ACTION = 1
 GAMMA = 0.99  # decay rate of past observations
 OBSERVE = 30.  # timesteps to observe before training
-EXPLORE = 200000.  # frames over which to anneal epsilon
-FINAL_EPSILON = 0  # 0.001 # final value of epsilon
-INITIAL_EPSILON = 0  # 0.01 # starting value of epsilon
+EXPLORE = 20000.  # frames over which to anneal epsilon
+FINAL_EPSILON = 0.001  # 0.001 # final value of epsilon
+INITIAL_EPSILON = 0.9  # 0.01 # starting value of epsilon
 REPLAY_MEMORY = 50000  # number of previous transitions to remember
 BATCH_SIZE = 20  # size of minibatch
 UPDATE_TIME = 100
+SAVE_AFTER_STEP = 10000
+REWARD_MAX = 40.0
 
 try:
     tf.mul
@@ -119,7 +122,7 @@ class BrainDQN:
         })
 
         # save network every 100000 iteration
-        if self.session.run(self.timeStep) % 30 == 0:
+        if self.session.run(self.timeStep) % SAVE_AFTER_STEP == 0:
             self.saver.save(self.session, 'saved_networks/' + 'network' + '-ddqn', global_step=self.timeStep)
 
         if self.session.run(self.timeStep) % UPDATE_TIME == 0:
@@ -128,7 +131,8 @@ class BrainDQN:
     def setPerception(self, nextObservation, action, reward, terminal):
         # newState = np.append(nextObservation,self.currentState[:,:,1:],axis = 2)
         newState = np.append(self.currentState[:, 1:], np.reshape(nextObservation, (141, 1)), axis=1)
-        self.replayMemory.append((self.currentState, action, reward, newState, terminal))
+        reward_normalize = reward / REWARD_MAX
+        self.replayMemory.append((self.currentState, action, reward_normalize, newState, terminal))
         if len(self.replayMemory) > REPLAY_MEMORY:
             self.replayMemory.popleft()
         if self.observe_count > OBSERVE:
