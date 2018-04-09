@@ -6,6 +6,7 @@ from tensorflow.python import debug as tf_debug
 
 
 # Hyper Parameters:
+# Todo: change the GAMA
 FRAME_PER_ACTION = 1
 GAMMA = 0.99  # decay rate of past observations
 OBSERVE = 30.  # timesteps to observe before training
@@ -15,6 +16,8 @@ INITIAL_EPSILON = 0  # 0.01 # starting value of epsilon
 REPLAY_MEMORY = 50000  # number of previous transitions to remember
 BATCH_SIZE = 20  # size of minibatch
 UPDATE_TIME = 100
+SAVE_AFTER_STEP = 10000
+REWARD_MAX = 40.0
 
 try:
     tf.mul
@@ -35,14 +38,19 @@ class BrainDQN:
         self.epsilon = INITIAL_EPSILON
         self.actions = actions
         # init Q network
-        self.stateInput, self.QValue, self.W_fc1, self.b_fc1, self.W_fc2, self.b_fc2, self.W_fc3, self.b_fc3 = self.createQNetwork()
+        self.stateInput, self.QValue_attack, self.QValue_defence, self.W_fc1, self.b_fc1, self.W_fc2, self.b_fc2,\
+            self.W_fc3_attack, self.b_fc3_attack, self.W_fc3_defence, self.b_fc3_defence = self.createQNetwork()
 
         # init Target Q Network
-        self.stateInputT, self.QValueT, self.W_fc1T, self.b_fc1T, self.W_fc2T, self.b_fc2T, self.W_fc3T, self.b_fc3T = self.createQNetwork()
+        self.stateInputT, self.QValue_attackT, self.QValue_defenceT, self.W_fc1T, self.b_fc1T, self.W_fc2T, self.b_fc2T,\
+            self.W_fc3_attackT, self.b_fc3_attackT, self.W_fc3_defenceT, self.b_fc3_defenceT = self.createQNetwork()
 
         self.copyTargetQNetworkOperation = [self.W_fc1T.assign(self.W_fc1), self.b_fc1T.assign(self.b_fc1),
                                             self.W_fc2T.assign(self.W_fc2), self.b_fc2T.assign(self.b_fc2),
-                                            self.W_fc3T.assign(self.W_fc3), self.b_fc3T.assign(self.b_fc3)]
+                                            self.W_fc3_attackT.assign(self.W_fc3_attack),
+                                            self.b_fc3_attackT.assign(self.b_fc3_attack),
+                                            self.W_fc3_defenceT.assign(self.W_fc3_defence),
+                                            self.b_fc3_defenceT.assign(self.b_fc3_defence)]
 
         self.createTrainingMethod()
 
@@ -66,8 +74,11 @@ class BrainDQN:
         W_fc2 = self.weight_variable([1024, 1024], "fc2")
         b_fc2 = self.bias_variable([1024], "fc2")
 
-        W_fc3 = self.weight_variable([1024, self.actions], "fc3")
-        b_fc3 = self.bias_variable([self.actions], "fc3")
+        W_fc3_attack = self.weight_variable([1024, self.actions], "fc3_attack")
+        b_fc3_attack = self.bias_variable([self.actions], "fc3_attack")
+
+        W_fc3_defence = self.weight_variable([1024, self.actions], "fc3_defence")
+        b_fc3_defence = self.bias_variable([self.actions], "fc3_defence")
 
         # input layer
         stateInput = tf.placeholder("float", [None, 141, 4])
@@ -76,12 +87,14 @@ class BrainDQN:
         h_fc2 = tf.nn.relu(tf.nn.bias_add(tf.matmul(h_fc1, W_fc2), b_fc2))
 
         # Q Value layer
-        QValue = tf.matmul(h_fc2, W_fc3) + b_fc3
+        QValue_attack = tf.matmul(h_fc2, W_fc3_attack) + b_fc3_attack
+        QValue_defence = tf.matmul(h_fc2, W_fc3_defence) + b_fc3_defence
 
         # stateInput = tf.placeholder("float", [None, 141])
         # h_fc1 = tf.layers.dense(inputs=stateInput, units=80, activation=tf.nn.relu)
 
-        return stateInput, QValue, W_fc1, b_fc1, W_fc2, b_fc2, W_fc3, b_fc3
+        return stateInput, QValue_attack, QValue_defence, W_fc1, b_fc1, W_fc2, b_fc2, W_fc3_attack, b_fc3_attack, \
+            W_fc3_defence, b_fc3_defence
 
     def copyTargetQNetwork(self):
         self.session.run(self.copyTargetQNetworkOperation)
@@ -89,12 +102,16 @@ class BrainDQN:
     def createTrainingMethod(self):
         self.actionInput = tf.placeholder("float", [None, self.actions])
         self.yInput = tf.placeholder("float", [None])
-        Q_Action = tf.reduce_sum(tf.mul(self.QValue, self.actionInput), reduction_indices=1)
-        self.cost = tf.reduce_mean(tf.square(self.yInput - Q_Action))
-        self.trainStep = tf.train.AdamOptimizer(1e-6).minimize(self.cost, global_step=self.timeStep)
+
+        Q_Action_attack = tf.reduce_sum(tf.mul(self.QValue_attack, self.actionInput), reduction_indices=1)
+        self.cost_attack = tf.reduce_mean(tf.square(self.yInput - Q_Action_attack))
+        self.trainStep_attack = tf.train.AdamOptimizer(1e-6).minimize(self.cost_attack, global_step=self.timeStep)
+
+        Q_Action_defence = tf.reduce_sum(tf.mul(self.QValue_defence, self.actionInput), reduction_indices=1)
+        self.cost_defence = tf.reduce_mean(tf.square(self.yInput - Q_Action_defence))
+        self.trainStep_defence = tf.train.AdamOptimizer(1e-6).minimize(self.cost_defence, global_step=self.timeStep)
 
     def trainQNetwork(self):
-
         # Step 1: obtain random minibatch from replay memory
         minibatch = random.sample(self.replayMemory, BATCH_SIZE)
         state_batch = [data[0] for data in minibatch]
@@ -102,24 +119,40 @@ class BrainDQN:
         reward_batch = [data[2] for data in minibatch]
         nextState_batch = [list(data[3]) for data in minibatch]
 
-        # Step 2: calculate y
+        # Step 2: calculate y attack
         y_batch = []
-        QValue_batch = self.session.run(self.QValueT, feed_dict={self.stateInputT: nextState_batch})
+        QValue_batch = self.session.run(self.QValue_attackT, feed_dict={self.stateInputT: nextState_batch})
         for i in range(0, BATCH_SIZE):
             terminal = minibatch[i][4]
             if terminal:
-                y_batch.append(reward_batch[i])
+                y_batch.append(reward_batch[i][1])
             else:
-                y_batch.append(reward_batch[i] + GAMMA * np.max(QValue_batch[i]))
+                y_batch.append(reward_batch[i][1] + GAMMA * np.max(QValue_batch[i]))
 
-        self.session.run(self.trainStep, feed_dict={
+        self.session.run(self.trainStep_attack, feed_dict={
+            self.yInput: y_batch,
+            self.actionInput: action_batch,
+            self.stateInput: state_batch
+        })
+
+        # Step 2: calculate y defence
+        y_batch = []
+        QValue_batch = self.session.run(self.QValue_defenceT, feed_dict={self.stateInputT: nextState_batch})
+        for i in range(0, BATCH_SIZE):
+            terminal = minibatch[i][4]
+            if terminal:
+                y_batch.append(reward_batch[i][0])
+            else:
+                y_batch.append(reward_batch[i][0] + GAMMA * np.max(QValue_batch[i]))
+
+        self.session.run(self.trainStep_defence, feed_dict={
             self.yInput: y_batch,
             self.actionInput: action_batch,
             self.stateInput: state_batch
         })
 
         # save network every 100000 iteration
-        if self.session.run(self.timeStep) % 30 == 0:
+        if self.session.run(self.timeStep) % SAVE_AFTER_STEP == 0:
             self.saver.save(self.session, 'saved_networks/' + 'network' + '-ddqn', global_step=self.timeStep)
 
         if self.session.run(self.timeStep) % UPDATE_TIME == 0:
@@ -128,7 +161,8 @@ class BrainDQN:
     def setPerception(self, nextObservation, action, reward, terminal):
         # newState = np.append(nextObservation,self.currentState[:,:,1:],axis = 2)
         newState = np.append(self.currentState[:, 1:], np.reshape(nextObservation, (141, 1)), axis=1)
-        self.replayMemory.append((self.currentState, action, reward, newState, terminal))
+        reward_normalize = [i/REWARD_MAX for i in reward]
+        self.replayMemory.append((self.currentState, action, reward_normalize, newState, terminal))
         if len(self.replayMemory) > REPLAY_MEMORY:
             self.replayMemory.popleft()
         if self.observe_count > OBSERVE:
@@ -151,7 +185,9 @@ class BrainDQN:
 
     def getAction(self):
         # QValue = self.QValue.eval(feed_dict={self.stateInput: self.currentState})[0]
-        QValue = self.session.run(self.QValue, feed_dict={self.stateInput: [self.currentState]})[0]
+        QValue_attack = self.session.run(self.QValue_attack, feed_dict={self.stateInput: [self.currentState]})[0]
+        QValue_defence = self.session.run(self.QValue_defence, feed_dict={self.stateInput: [self.currentState]})[0]
+        QValue = QValue_attack + QValue_defence
         action = np.zeros(self.actions)
         action_index = 0
         if self.session.run(self.timeStep) % FRAME_PER_ACTION == 0:

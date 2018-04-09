@@ -7,7 +7,7 @@ from tensorflow_Agent import tensorflow_agent
 import subprocess
 
 
-subprocess.Popen('cd ..;bash macOS.sh', shell=True)
+# subprocess.Popen('cd ..;bash macOS.sh', shell=True)
 # sleep(4)
 def check_args(args):
     for i in range(argc):

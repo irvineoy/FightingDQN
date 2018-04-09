@@ -16,7 +16,7 @@ class tensorflow_agent(object):
         self.R = 0  # total reward in a round
         self.action = 0
         self.MaxPoint = 120  # max projectile damage (ver 4.10)
-        self.SubPoint = 0  # max damage in usual action (ver 4.10)
+        self.SubPoint = 40  # max damage in usual action (ver 4.10)
         self.countProcess = 0
         self.frameData = None
         self.nonDelay = None
@@ -219,10 +219,11 @@ class tensorflow_agent(object):
         if finishRound == 0:
             # Defence reward = SubPoint - (currentMyHp - lastMyHp )
             # Attack reward = currentOppHp - lastOppHp
-            self.reward = self.SubPoint - (abs(self.nonDelay.getCharacter(self.player).getHp()) - self.lastHp_my)
-            self.reward += 2 * (abs(self.nonDelay.getCharacter(not self.player).getHp()) - self.lastHp_opp)
+            self.reward = []  # 0:defence 1:attack
+            self.reward.append(self.SubPoint - (abs(self.nonDelay.getCharacter(self.player).getHp()) - self.lastHp_my))
+            self.reward.append(abs(self.nonDelay.getCharacter(not self.player).getHp()) - self.lastHp_opp)
 
-            self.R += self.reward
+            self.R = self.R + self.reward[0] + self.reward[1]
             print("The reward is: ", self.reward)
             return self.reward
 
@@ -231,10 +232,10 @@ class tensorflow_agent(object):
                     self.nonDelay.getCharacter(not self.player).getHp()):
                 self.R += self.MaxPoint
                 self.win = 1
-                return self.MaxPoint
+                return [self.MaxPoint, self.MaxPoint]
             else:
                 self.win = 0
-                return 0
+                return [0, 0]
 
     def setLastHp(self):
         self.lastHp_opp = abs(self.nonDelay.getCharacter(not self.player).getHp())
@@ -279,7 +280,7 @@ class tensorflow_agent(object):
             self.setLastHp()
             self.playAction()
 
-        elif self.currentFrameNum > 3550 and self.isFinishd == 0:
+        elif self.currentFrameNum > 3570 and self.isFinishd == 0:
             reward = self.makeReward(1)
             state = self.getObservation()
             self.playAction()
