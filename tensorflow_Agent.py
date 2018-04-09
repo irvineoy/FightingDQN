@@ -142,7 +142,7 @@ class tensorflow_agent(object):
                 observation.append(1)
             else:
                 observation.append(0)
-        observation.append(oppRemainingFrame)
+        # observation.append(oppRemainingFrame)
 
         myProjectiles = self.frameData.getProjectilesByP1()
         oppProjectiles = self.frameData.getProjectilesByP2()

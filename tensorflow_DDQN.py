@@ -38,14 +38,18 @@ class BrainDQN:
         self.epsilon = INITIAL_EPSILON
         self.actions = actions
         # init Q network
-        self.stateInput, self.QValue, self.W_fc1, self.b_fc1, self.W_fc2, self.b_fc2, self.W_fc3, self.b_fc3 = self.createQNetwork()
+        self.stateInput, self.QValue, self.W_conv1, self.b_conv1, self.W_conv2, self.b_conv2, self.W_fc1, self.b_fc1, \
+            self.W_fc2, self.b_fc2, self.W_fc3, self.b_fc3 = self.createQNetwork()
 
         # init Target Q Network
-        self.stateInputT, self.QValueT, self.W_fc1T, self.b_fc1T, self.W_fc2T, self.b_fc2T, self.W_fc3T, self.b_fc3T = self.createQNetwork()
+        self.stateInputT, self.QValueT, self.W_conv1T, self.b_conv1T, self.W_conv2T, self.b_conv2T, self.W_fc1T, \
+            self.b_fc1T, self.W_fc2T, self.b_fc2T, self.W_fc3T, self.b_fc3T = self.createQNetwork()
 
         self.copyTargetQNetworkOperation = [self.W_fc1T.assign(self.W_fc1), self.b_fc1T.assign(self.b_fc1),
                                             self.W_fc2T.assign(self.W_fc2), self.b_fc2T.assign(self.b_fc2),
-                                            self.W_fc3T.assign(self.W_fc3), self.b_fc3T.assign(self.b_fc3)]
+                                            self.W_fc3T.assign(self.W_fc3), self.b_fc3T.assign(self.b_fc3),
+                                            self.W_conv1T.assign(self.W_conv1), self.b_conv1T.assign(self.b_conv1),
+                                            self.W_conv2T.assign(self.W_conv2), self.b_conv2T.assign(self.b_conv2)]
 
         self.createTrainingMethod()
 
@@ -63,19 +67,30 @@ class BrainDQN:
             print("Could not find old network weights")
 
     def createQNetwork(self):
-        W_fc1 = self.weight_variable([141*4, 1024], "fc1")
+        W_conv1 = self.weight_variable([8, 8, 4, 32], "conv1")
+        b_conv1 = self.bias_variable([32], "conv1")
+
+        W_conv2 = self.weight_variable([4, 4, 32, 64], "conv2")
+        b_conv2 = self.bias_variable([64], "conv2")
+
+        # W_conv3 = self.weight_variable([3, 3, 64, 64], "conv3")
+        # b_conv3 = self.bias_variable([64], "conv3")
+
+        W_fc1 = self.weight_variable([2240, 1024], "fc1")
         b_fc1 = self.bias_variable([1024], "fc1")
 
-        W_fc2 = self.weight_variable([1024, 1024], "fc2")
-        b_fc2 = self.bias_variable([1024], "fc2")
+        W_fc2 = self.weight_variable([1024, 512], "fc2")
+        b_fc2 = self.bias_variable([512], "fc2")
 
-        W_fc3 = self.weight_variable([1024, self.actions], "fc3")
+        W_fc3 = self.weight_variable([512, self.actions], "fc3")
         b_fc3 = self.bias_variable([self.actions], "fc3")
 
         # input layer
-        stateInput = tf.placeholder("float", [None, 141, 4])
+        stateInput = tf.placeholder("float", [None, 14, 10, 4])
 
-        h_fc1 = tf.nn.relu(tf.nn.bias_add(tf.matmul(tf.reshape(stateInput, [-1, 141*4]), W_fc1), b_fc1))
+        h_conv1 = tf.nn.relu(self.conv2d(stateInput, W_conv1, 2) + b_conv1)
+        h_conv2 = tf.nn.relu(self.conv2d(h_conv1, W_conv2, 1) + b_conv2)
+        h_fc1 = tf.nn.relu(tf.nn.bias_add(tf.matmul(tf.reshape(h_conv2, [-1, 2240]), W_fc1), b_fc1))
         h_fc2 = tf.nn.relu(tf.nn.bias_add(tf.matmul(h_fc1, W_fc2), b_fc2))
 
         # Q Value layer
@@ -84,7 +99,7 @@ class BrainDQN:
         # stateInput = tf.placeholder("float", [None, 141])
         # h_fc1 = tf.layers.dense(inputs=stateInput, units=80, activation=tf.nn.relu)
 
-        return stateInput, QValue, W_fc1, b_fc1, W_fc2, b_fc2, W_fc3, b_fc3
+        return stateInput, QValue, W_conv1, b_conv1, W_conv2, b_conv2, W_fc1, b_fc1, W_fc2, b_fc2, W_fc3, b_fc3
 
     def copyTargetQNetwork(self):
         self.session.run(self.copyTargetQNetworkOperation)
@@ -130,7 +145,7 @@ class BrainDQN:
 
     def setPerception(self, nextObservation, action, reward, terminal):
         # newState = np.append(nextObservation,self.currentState[:,:,1:],axis = 2)
-        newState = np.append(self.currentState[:, 1:], np.reshape(nextObservation, (141, 1)), axis=1)
+        newState = np.append(self.currentState[:, 1:], np.reshape(nextObservation, (14, 10, 1)), axis=1)
         reward_normalize = reward / REWARD_MAX
         self.replayMemory.append((self.currentState, action, reward_normalize, newState, terminal))
         if len(self.replayMemory) > REPLAY_MEMORY:
@@ -147,7 +162,7 @@ class BrainDQN:
         else:
             state = "train"
 
-        print("TIMESTEP", self.session.run(self.timeStep), "/ STATE", state, \
+        print("TIMESTEP", self.session.run(self.timeStep), "/ STATE", state,
               "/ EPSILON", self.epsilon)
 
         self.currentState = newState
@@ -193,3 +208,5 @@ class BrainDQN:
             initial = tf.constant(0.01, shape=shape)
             return tf.Variable(initial)
 
+    def conv2d(self, x, W, stride):
+        return tf.nn.conv2d(x, W, strides=[1, stride, stride, 1], padding="SAME")
