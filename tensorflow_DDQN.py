@@ -145,7 +145,7 @@ class BrainDQN:
 
     def setPerception(self, nextObservation, action, reward, terminal):
         # newState = np.append(nextObservation,self.currentState[:,:,1:],axis = 2)
-        newState = np.append(self.currentState[:, 1:], np.reshape(nextObservation, (14, 10, 1)), axis=1)
+        newState = np.append(self.currentState[:, :, 1:], np.reshape(nextObservation, (14, 10, 1)), axis=2)
         reward_normalize = reward / REWARD_MAX
         self.replayMemory.append((self.currentState, action, reward_normalize, newState, terminal))
         if len(self.replayMemory) > REPLAY_MEMORY:
@@ -196,7 +196,9 @@ class BrainDQN:
         #     with tf_debug.LocalCLIDebugWrapperSession(sess) as sess:
         #         sess.run(init_g)
         #         sess.run(init_l)
-        self.currentState = np.stack((observation, observation, observation, observation), axis=1)
+        observation = np.reshape(observation, (14, 10))
+        self.currentState = np.stack((observation, observation, observation, observation), axis=2)
+        print(self.currentState.shape)
 
     def weight_variable(self, shape, name):
         with tf.variable_scope(name):
