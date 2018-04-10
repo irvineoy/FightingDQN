@@ -9,12 +9,12 @@ from tensorflow.python import debug as tf_debug
 # Todo: change the GAMMA
 FRAME_PER_ACTION = 1
 GAMMA = 0.99  # decay rate of past observations
-OBSERVE = 30.  # timesteps to observe before training
+OBSERVE = 300.  # timesteps to observe before training
 EXPLORE = 20000.  # frames over which to anneal epsilon
 FINAL_EPSILON = 0.001  # 0.001 # final value of epsilon
 INITIAL_EPSILON = 0.9  # 0.01 # starting value of epsilon
 REPLAY_MEMORY = 50000  # number of previous transitions to remember
-BATCH_SIZE = 20  # size of minibatch
+BATCH_SIZE = 200  # size of minibatch
 UPDATE_TIME = 100
 SAVE_AFTER_STEP = 10000
 REWARD_MAX = 40.0
