@@ -9,15 +9,16 @@ from tensorflow.python import debug as tf_debug
 # Todo: change the GAMA
 FRAME_PER_ACTION = 1
 GAMMA = 0.99  # decay rate of past observations
-OBSERVE = 30.  # timesteps to observe before training
+OBSERVE = 300.  # timesteps to observe before training
 EXPLORE = 20000.  # frames over which to anneal epsilon
 FINAL_EPSILON = 0.001  # 0.001 # final value of epsilon
 INITIAL_EPSILON = 0.9  # 0.01 # starting value of epsilon
 REPLAY_MEMORY = 50000  # number of previous transitions to remember
-BATCH_SIZE = 20  # size of minibatch
+BATCH_SIZE = 200  # size of minibatch
 UPDATE_TIME = 100
 SAVE_AFTER_STEP = 10000
 REWARD_MAX = 40.0
+LR = 1e-4
 
 try:
     tf.mul
@@ -109,7 +110,7 @@ class BrainDQN:
 
         Q_Action_defence = tf.reduce_sum(tf.mul(self.QValue_defence, self.actionInput), reduction_indices=1)
         self.cost_defence = tf.reduce_mean(tf.square(self.yInput - Q_Action_defence))
-        self.trainStep_defence = tf.train.AdamOptimizer(1e-6).minimize(self.cost_defence, global_step=self.timeStep)
+        self.trainStep_defence = tf.train.AdamOptimizer(LR).minimize(self.cost_defence, global_step=self.timeStep)
 
     def trainQNetwork(self):
         # Step 1: obtain random minibatch from replay memory
