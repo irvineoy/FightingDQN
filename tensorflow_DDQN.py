@@ -162,6 +162,9 @@ class BrainDQN:
         # newState = np.append(nextObservation,self.currentState[:,:,1:],axis = 2)
         newState = np.append(self.currentState[:, 1:], np.reshape(nextObservation, (141, 1)), axis=1)
         reward_normalize = [i/REWARD_MAX for i in reward]
+        reward_normalize = []
+        reward_normalize.append(reward[0] / (REWARD_MAX * 3))
+        reward_normalize.append(reward[1] / REWARD_MAX)
         self.replayMemory.append((self.currentState, action, reward_normalize, newState, terminal))
         if len(self.replayMemory) > REPLAY_MEMORY:
             self.replayMemory.popleft()

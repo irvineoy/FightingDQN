@@ -16,7 +16,7 @@ class tensorflow_agent(object):
         self.R = 0  # total reward in a round
         self.action = 0
         self.MaxPoint = 120  # max projectile damage (ver 4.10)
-        self.SubPoint = 40  # max damage in usual action (ver 4.10)
+        self.SubPoint = 10  # max damage in usual action (ver 4.10)
         self.countProcess = 0
         self.frameData = None
         self.nonDelay = None
