@@ -64,13 +64,13 @@ class BrainDQN:
             print("Could not find old network weights")
 
     def createQNetwork(self):
-        W_fc1 = self.weight_variable([141*4, 1024], "fc1")
-        b_fc1 = self.bias_variable([1024], "fc1")
+        W_fc1 = self.weight_variable([141*4, 512], "fc1")
+        b_fc1 = self.bias_variable([512], "fc1")
 
-        W_fc2 = self.weight_variable([1024, 1024], "fc2")
-        b_fc2 = self.bias_variable([1024], "fc2")
+        W_fc2 = self.weight_variable([512, 256], "fc2")
+        b_fc2 = self.bias_variable([256], "fc2")
 
-        W_fc3 = self.weight_variable([1024, self.actions], "fc3")
+        W_fc3 = self.weight_variable([256, self.actions], "fc3")
         b_fc3 = self.bias_variable([self.actions], "fc3")
 
         # input layer
