@@ -279,7 +279,7 @@ class tensorflow_agent(object):
             self.setLastHp()
             self.playAction()
 
-        elif self.currentFrameNum > 3560 and self.isFinishd == 0:
+        elif self.currentFrameNum > 3550 and self.isFinishd == 0:
             reward = self.makeReward(1)
             state = self.getObservation()
             self.playAction()
