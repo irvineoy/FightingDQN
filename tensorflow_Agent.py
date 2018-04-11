@@ -219,7 +219,7 @@ class tensorflow_agent(object):
         if finishRound == 0:
             # Defence reward = SubPoint - (currentMyHp - lastMyHp )
             # Attack reward = currentOppHp - lastOppHp
-            self.reward = self.SubPoint - (abs(self.nonDelay.getCharacter(self.player).getHp()) - self.lastHp_my)
+            self.reward = (self.SubPoint - (abs(self.nonDelay.getCharacter(self.player).getHp()) - self.lastHp_my)) / 3.0
             self.reward += 1 * (abs(self.nonDelay.getCharacter(not self.player).getHp()) - self.lastHp_opp)
 
             self.R += self.reward
@@ -279,7 +279,7 @@ class tensorflow_agent(object):
             self.setLastHp()
             self.playAction()
 
-        elif self.currentFrameNum > 3570 and self.isFinishd == 0:
+        elif self.currentFrameNum > 3550 and self.isFinishd == 0:
             reward = self.makeReward(1)
             state = self.getObservation()
             self.playAction()
