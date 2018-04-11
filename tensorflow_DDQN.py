@@ -90,7 +90,7 @@ class BrainDQN:
 
         h_conv1 = tf.nn.relu(self.conv2d(stateInput, W_conv1, 2) + b_conv1)
         h_conv2 = tf.nn.relu(self.conv2d(h_conv1, W_conv2, 1) + b_conv2)
-        h_fc1 = tf.nn.relu(tf.nn.bias_add(tf.matmul(tf.reshape(h_conv2, [-1, 2240]), W_fc1), b_fc1))
+        h_fc1 = tf.nn.relu(tf.nn.bias_add(tf.matmul(tf.reshape(h_conv2, [-1, 1120]), W_fc1), b_fc1))
         h_fc2 = tf.nn.relu(tf.nn.bias_add(tf.matmul(h_fc1, W_fc2), b_fc2))
 
         # Q Value layer
