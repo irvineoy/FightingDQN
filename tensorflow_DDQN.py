@@ -5,6 +5,7 @@ from collections import deque
 from tensorflow.python import debug as tf_debug
 
 
+# This is multihead
 # Hyper Parameters:
 # Todo: change the GAMA
 FRAME_PER_ACTION = 1
@@ -130,11 +131,12 @@ class BrainDQN:
             else:
                 y_batch.append(reward_batch[i][1] + GAMMA * np.max(QValue_batch[i]))
 
-        self.session.run(self.trainStep_attack, feed_dict={
+        cost_attack = self.session.run([self.cost_attack, self.trainStep_attack], feed_dict={
             self.yInput: y_batch,
             self.actionInput: action_batch,
             self.stateInput: state_batch
         })
+        print("The attack cost is: ", cost_attack[0])
 
         # Step 2: calculate y defence
         y_batch = []
@@ -146,11 +148,12 @@ class BrainDQN:
             else:
                 y_batch.append(reward_batch[i][0] + GAMMA * np.max(QValue_batch[i]))
 
-        self.session.run(self.trainStep_defence, feed_dict={
+        cost_defence = self.session.run([self.cost_defence, self.trainStep_defence], feed_dict={
             self.yInput: y_batch,
             self.actionInput: action_batch,
             self.stateInput: state_batch
         })
+        print("The defence cost is: ", cost_defence[0])
 
         # save network every 100000 iteration
         if self.session.run(self.timeStep) % SAVE_AFTER_STEP == 0:
