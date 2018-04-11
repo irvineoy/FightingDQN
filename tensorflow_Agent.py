@@ -49,7 +49,7 @@ class tensorflow_agent(object):
                 file.write('')
         with open('./saved_networks/battleResult.txt', 'a') as file:
             file.write("The current step is: " + str(self.brain.session.run(self.brain.timeStep)))
-            file.write("  frame number: " + str(z) + "  p1: " + str(x) + "  p2: " + str(y))
+            file.write("  The result: " + str(self.win) + "  p1: " + str(x) + "  p2: " + str(y))
             file.write("\n")
         print(x)
         print(y)
