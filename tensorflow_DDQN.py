@@ -4,7 +4,7 @@ import random
 from collections import deque
 from tensorflow.python import debug as tf_debug
 
-
+# this is cnn
 # Hyper Parameters:
 # Todo: change the GAMMA
 FRAME_PER_ACTION = 1
@@ -130,11 +130,12 @@ class BrainDQN:
             else:
                 y_batch.append(reward_batch[i] + GAMMA * np.max(QValue_batch[i]))
 
-        self.session.run(self.trainStep, feed_dict={
+        cost = self.session.run([self.cost, self.trainStep], feed_dict={
             self.yInput: y_batch,
             self.actionInput: action_batch,
             self.stateInput: state_batch
         })
+        print("Ths cost is: ", cost[0])
 
         # save network every 100000 iteration
         if self.session.run(self.timeStep) % SAVE_AFTER_STEP == 0:
