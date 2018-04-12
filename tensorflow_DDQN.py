@@ -4,6 +4,7 @@ import random
 from collections import deque
 from tensorflow.python import debug as tf_debug
 import threading
+from time import sleep
 
 
 # This is master
@@ -11,8 +12,8 @@ import threading
 # Todo: change the GAMMA
 FRAME_PER_ACTION = 1
 GAMMA = 0.99  # decay rate of past observations
-OBSERVE = 4000.  # timesteps to observe before training
-EXPLORE = 20000.  # frames over which to anneal epsilon
+OBSERVE = 400.  # timesteps to observe before training
+EXPLORE = 5000.  # frames over which to anneal epsilon
 FINAL_EPSILON = 0.001  # 0.001 # final value of epsilon
 INITIAL_EPSILON = 0.9  # 0.01 # starting value of epsilon
 REPLAY_MEMORY = 50000  # number of previous transitions to remember
@@ -20,7 +21,7 @@ BATCH_SIZE = 32  # size of minibatch
 UPDATE_TIME = 100
 SAVE_AFTER_STEP = 10000
 REWARD_MAX = 40.0
-LR = 1e-4
+LR = 1e-7
 
 try:
     tf.mul
@@ -153,6 +154,7 @@ class BrainDQN:
             t = threading.Thread(target=self.trainAllTheTime, args=())
             t.start()
             state = "begin the threading"
+            self.observe_count += 1
         elif self.session.run(self.timeStep) <= OBSERVE + EXPLORE:
             state = "explore"
         else:
@@ -207,3 +209,4 @@ class BrainDQN:
     def trainAllTheTime(self):
         while 1:
             self.trainQNetwork()
+            # sleep(0.1)
