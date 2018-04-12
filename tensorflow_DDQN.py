@@ -3,6 +3,7 @@ import numpy as np
 import random
 from collections import deque
 from tensorflow.python import debug as tf_debug
+import threading
 
 
 # This is master
@@ -10,12 +11,12 @@ from tensorflow.python import debug as tf_debug
 # Todo: change the GAMMA
 FRAME_PER_ACTION = 1
 GAMMA = 0.99  # decay rate of past observations
-OBSERVE = 300.  # timesteps to observe before training
+OBSERVE = 4000.  # timesteps to observe before training
 EXPLORE = 20000.  # frames over which to anneal epsilon
 FINAL_EPSILON = 0.001  # 0.001 # final value of epsilon
 INITIAL_EPSILON = 0.9  # 0.01 # starting value of epsilon
 REPLAY_MEMORY = 50000  # number of previous transitions to remember
-BATCH_SIZE = 200  # size of minibatch
+BATCH_SIZE = 32  # size of minibatch
 UPDATE_TIME = 100
 SAVE_AFTER_STEP = 10000
 REWARD_MAX = 40.0
@@ -37,6 +38,7 @@ class BrainDQN:
         # init some parameters
         self.timeStep = tf.Variable(0, trainable=False)
         self.observe_count = 0
+        self.costValue = 0
         self.epsilon = INITIAL_EPSILON
         self.actions = actions
         # init Q network
@@ -117,12 +119,13 @@ class BrainDQN:
             else:
                 y_batch.append(reward_batch[i] + GAMMA * np.max(QValue_batch[i]))
 
-        cost = self.session.run([self.cost, self.trainStep], feed_dict={
+        costValue = self.session.run([self.cost, self.trainStep], feed_dict={
             self.yInput: y_batch,
             self.actionInput: action_batch,
             self.stateInput: state_batch
         })
-        print("The cost is: ", cost[0])
+        self.costValue = costValue[0]
+        # print("The cost is: ", cost[0])
 
         # save network every 100000 iteration
         if self.session.run(self.timeStep) % SAVE_AFTER_STEP == 0:
@@ -139,12 +142,17 @@ class BrainDQN:
         if len(self.replayMemory) > REPLAY_MEMORY:
             self.replayMemory.popleft()
         if self.observe_count > OBSERVE:
+                pass
             # Train the network
-            self.trainQNetwork()
+            # self.trainQNetwork()
         # print info
-        if self.observe_count <= OBSERVE:
+        if self.observe_count < OBSERVE:
             state = "observe"
             self.observe_count += 1
+        elif self.observe_count == OBSERVE:
+            t = threading.Thread(target=self.trainAllTheTime, args=())
+            t.start()
+            state = "begin the threading"
         elif self.session.run(self.timeStep) <= OBSERVE + EXPLORE:
             state = "explore"
         else:
@@ -152,6 +160,7 @@ class BrainDQN:
 
         print("TIMESTEP", self.session.run(self.timeStep), "/ STATE", state, \
               "/ EPSILON", self.epsilon)
+        print("The cost is: ", self.costValue)
 
         self.currentState = newState
         # self.timeStep += 1
@@ -174,7 +183,6 @@ class BrainDQN:
         # change episilon
         if self.epsilon > FINAL_EPSILON and self.session.run(self.timeStep) > OBSERVE:
             self.epsilon -= (INITIAL_EPSILON - FINAL_EPSILON) / EXPLORE
-
         return action
 
     def setInitState(self, observation):
@@ -196,3 +204,6 @@ class BrainDQN:
             initial = tf.constant(0.01, shape=shape)
             return tf.Variable(initial)
 
+    def trainAllTheTime(self):
+        while 1:
+            self.trainQNetwork()
