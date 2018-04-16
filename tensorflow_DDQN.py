@@ -153,6 +153,7 @@ class BrainDQN:
             t = threading.Thread(target=self.trainAllTheTime, args=())
             t.start()
             state = "begin the threading"
+            self.observe_count += 1
         elif self.session.run(self.timeStep) <= OBSERVE + EXPLORE:
             state = "explore"
         else:
