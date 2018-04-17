@@ -4,6 +4,7 @@ import random
 from collections import deque
 from tensorflow.python import debug as tf_debug
 import threading
+import pickle
 
 
 # This is master
@@ -11,16 +12,16 @@ import threading
 # Todo: change the GAMMA
 FRAME_PER_ACTION = 1
 GAMMA = 0.99  # decay rate of past observations
-OBSERVE = 4000.  # timesteps to observe before training
-EXPLORE = 20000.  # frames over which to anneal epsilon
+OBSERVE = 500.  # timesteps to observe before training
+EXPLORE = 80000.  # frames over which to anneal epsilon
 FINAL_EPSILON = 0.001  # 0.001 # final value of epsilon
 INITIAL_EPSILON = 0.9  # 0.01 # starting value of epsilon
-REPLAY_MEMORY = 50000  # number of previous transitions to remember
+REPLAY_MEMORY = 100000  # number of previous transitions to remember
 BATCH_SIZE = 32  # size of minibatch
-UPDATE_TIME = 100
+UPDATE_TIME = 10000
 SAVE_AFTER_STEP = 10000
 REWARD_MAX = 40.0
-LR = 1e-4
+LR = 1e-6
 
 try:
     tf.mul
@@ -67,13 +68,13 @@ class BrainDQN:
             print("Could not find old network weights")
 
     def createQNetwork(self):
-        W_fc1 = self.weight_variable([141*4, 512], "fc1")
-        b_fc1 = self.bias_variable([512], "fc1")
+        W_fc1 = self.weight_variable([141*4, 1024], "fc1")
+        b_fc1 = self.bias_variable([1024], "fc1")
 
-        W_fc2 = self.weight_variable([512, 256], "fc2")
-        b_fc2 = self.bias_variable([256], "fc2")
+        W_fc2 = self.weight_variable([1024, 1024], "fc2")
+        b_fc2 = self.bias_variable([1024], "fc2")
 
-        W_fc3 = self.weight_variable([256, self.actions], "fc3")
+        W_fc3 = self.weight_variable([1024, self.actions], "fc3")
         b_fc3 = self.bias_variable([self.actions], "fc3")
 
         # input layer
@@ -139,6 +140,16 @@ class BrainDQN:
         newState = np.append(self.currentState[:, 1:], np.reshape(nextObservation, (141, 1)), axis=1)
         reward_normalize = reward / REWARD_MAX
         self.replayMemory.append((self.currentState, action, reward_normalize, newState, terminal))
+        if len(self.replayMemory) == REPLAY_MEMORY:
+            memory = np.array(self.replayMemory)
+            memory = memory.tolist()
+            print("Begin to write memory file")
+            try:
+                with open('./saved_networks/memory.json', 'wb') as file:
+                    pickle.dump(memory, file)
+            except Exception as e:
+                print(e)
+                exit()
         if len(self.replayMemory) > REPLAY_MEMORY:
             self.replayMemory.popleft()
         if self.observe_count > OBSERVE:
