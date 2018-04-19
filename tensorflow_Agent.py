@@ -3,6 +3,7 @@ from tensorflow_DDQN import BrainDQN
 from TrainModule import ActionMap
 import numpy as np
 import os
+import csv
 # import crash_on_ipy
 # import ipdb;ipdb.set_trace()
 # This is master
@@ -45,16 +46,45 @@ class tensorflow_agent(object):
 
     # please define this method when you use FightingICE version 3.20 or later
     def roundEnd(self, x, y, z):
-        if os.path.isfile('./saved_networks/battleResult.txt') == False:
-            with open('./saved_networks/battleResult.txt', 'w') as file:
-                file.write('')
-        with open('./saved_networks/battleResult.txt', 'a') as file:
-            file.write("The current step is: " + str(self.brain.session.run(self.brain.timeStep)))
-            file.write("  The result: " + str(self.win) + "  p1: " + str(x) + "  p2: " + str(y))
-            file.write("\n")
+        score = (self.nonDelay.getCharacter(not self.player).getHp()/(self.nonDelay.getCharacter(not self.player).getHp() + self.nonDelay.getCharacter(self.player).getHp())) * 1000
+        csvList = []
+        csvList.append(self.currentRoundNum)
+        csvList.append(self.R)
+        csvList.append(self.brain.epsilon)
+        csvList.append(abs(self.nonDelay.getCharacter(self.player).getHp()))
+        csvList.append(abs(self.nonDelay.getCharacter(not self.player).getHp()))
+        csvList.append(score)
+        csvList.append(self.win)
+        with open("./saved_networks/resultData.csv", 'a') as f:
+            writer = csv.writer(f, lineterminator='\n')
+            writer.writerow(csvList)
+        # with open('./saved_networks/battleResult.csv', 'a') as file:
+        #     file.write("The current step is: " + str(self.brain.session.run(self.brain.timeStep)))
+        #     file.write("  frame number: " + str(z) + "  p1: " + str(x) + "  p2: " + str(y))
+        #     file.write("\n")
         print(x)
         print(y)
         print(z)
+
+    def makeResultFile(self):
+        if not os.path.exists("./saved_networks/"):
+            print("Make direction")
+            os.makedirs("./saved_networks/")
+        if os.path.isfile('./saved_networks/resultData.csv') == False:
+            with open('./saved_networks/resultData.csv', 'w') as file:
+                file.write('')
+        csvList = []
+        csvList.append("roundNum")
+        csvList.append("R")
+        csvList.append("epsilon")
+        csvList.append("myHp")
+        csvList.append("oppHp")
+        csvList.append("score")
+        csvList.append("win")
+        f = open("./saved_networks/resultData.csv", 'a')
+        writer = csv.writer(f, lineterminator='\n')
+        writer.writerow(csvList)
+        f.close()
 
     # please define this method when you use FightingICE version 4.00 or later
     def getScreenData(self, sd):
@@ -68,6 +98,7 @@ class tensorflow_agent(object):
 
         self.player = player
         self.simulator = gameData.getSimulator()
+        self.makeResultFile()
 
         return 0
 
