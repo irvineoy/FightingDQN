@@ -2,12 +2,12 @@ import tensorflow as tf
 import numpy as np
 import random
 from collections import deque
+import threading
 from tensorflow.python import debug as tf_debug
 
 
 # This is multihead
 # Hyper Parameters:
-# Todo: change the GAMA
 FRAME_PER_ACTION = 1
 GAMMA = 0.99  # decay rate of past observations
 OBSERVE = 300.  # timesteps to observe before training
@@ -15,11 +15,11 @@ EXPLORE = 20000.  # frames over which to anneal epsilon
 FINAL_EPSILON = 0.001  # 0.001 # final value of epsilon
 INITIAL_EPSILON = 0.9  # 0.01 # starting value of epsilon
 REPLAY_MEMORY = 50000  # number of previous transitions to remember
-BATCH_SIZE = 200  # size of minibatch
+BATCH_SIZE = 32  # size of minibatch
 UPDATE_TIME = 100
 SAVE_AFTER_STEP = 10000
 REWARD_MAX = 40.0
-LR = 1e-4
+LR = 1e-6
 
 try:
     tf.mul
@@ -37,6 +37,7 @@ class BrainDQN:
         # init some parameters
         self.timeStep = tf.Variable(0, trainable=False)
         self.observe_count = 0
+        self.costValue = []
         self.epsilon = INITIAL_EPSILON
         self.actions = actions
         # init Q network
@@ -107,7 +108,7 @@ class BrainDQN:
 
         Q_Action_attack = tf.reduce_sum(tf.mul(self.QValue_attack, self.actionInput), reduction_indices=1)
         self.cost_attack = tf.reduce_mean(tf.square(self.yInput - Q_Action_attack))
-        self.trainStep_attack = tf.train.AdamOptimizer(1e-6).minimize(self.cost_attack, global_step=self.timeStep)
+        self.trainStep_attack = tf.train.AdamOptimizer(LR).minimize(self.cost_attack, global_step=self.timeStep)
 
         Q_Action_defence = tf.reduce_sum(tf.mul(self.QValue_defence, self.actionInput), reduction_indices=1)
         self.cost_defence = tf.reduce_mean(tf.square(self.yInput - Q_Action_defence))
@@ -121,39 +122,42 @@ class BrainDQN:
         reward_batch = [data[2] for data in minibatch]
         nextState_batch = [list(data[3]) for data in minibatch]
 
+        self.costValue = []
         # Step 2: calculate y attack
         y_batch = []
         QValue_batch = self.session.run(self.QValue_attackT, feed_dict={self.stateInputT: nextState_batch})
         for i in range(0, BATCH_SIZE):
-            terminal = minibatch[i][4]
-            if terminal:
-                y_batch.append(reward_batch[i][1])
-            else:
-                y_batch.append(reward_batch[i][1] + GAMMA * np.max(QValue_batch[i]))
+            # terminal = minibatch[i][4]
+            # if terminal:
+            #     y_batch.append(reward_batch[i][1])
+            # else:
+            y_batch.append(reward_batch[i][1] + GAMMA * np.max(QValue_batch[i]))
 
         cost_attack = self.session.run([self.cost_attack, self.trainStep_attack], feed_dict={
             self.yInput: y_batch,
             self.actionInput: action_batch,
             self.stateInput: state_batch
         })
-        print("The attack cost is: ", cost_attack[0])
+        self.costValue.append(cost_attack[0])
+        # print("The attack cost is: ", cost_attack[0])
 
         # Step 2: calculate y defence
         y_batch = []
         QValue_batch = self.session.run(self.QValue_defenceT, feed_dict={self.stateInputT: nextState_batch})
         for i in range(0, BATCH_SIZE):
-            terminal = minibatch[i][4]
-            if terminal:
-                y_batch.append(reward_batch[i][0])
-            else:
-                y_batch.append(reward_batch[i][0] + GAMMA * np.max(QValue_batch[i]))
+            # terminal = minibatch[i][4]
+            # if terminal:
+            #     y_batch.append(reward_batch[i][0])
+            # else:
+            y_batch.append(reward_batch[i][0] + GAMMA * np.max(QValue_batch[i]))
 
         cost_defence = self.session.run([self.cost_defence, self.trainStep_defence], feed_dict={
             self.yInput: y_batch,
             self.actionInput: action_batch,
             self.stateInput: state_batch
         })
-        print("The defence cost is: ", cost_defence[0])
+        self.costValue.append(cost_defence[0])
+        # print("The defence cost is: ", cost_defence[0])
 
         # save network every 100000 iteration
         if self.session.run(self.timeStep) % SAVE_AFTER_STEP == 0:
@@ -167,7 +171,7 @@ class BrainDQN:
         newState = np.append(self.currentState[:, 1:], np.reshape(nextObservation, (141, 1)), axis=1)
         reward_normalize = [i/REWARD_MAX for i in reward]
         reward_normalize = []
-        reward_normalize.append(reward[0] / (REWARD_MAX * 3))
+        reward_normalize.append(reward[0] / REWARD_MAX)
         reward_normalize.append(reward[1] / REWARD_MAX)
         self.replayMemory.append((self.currentState, action, reward_normalize, newState, terminal))
         if len(self.replayMemory) > REPLAY_MEMORY:
@@ -176,8 +180,13 @@ class BrainDQN:
             # Train the network
             self.trainQNetwork()
         # print info
-        if self.observe_count <= OBSERVE:
+        if self.observe_count < OBSERVE:
             state = "observe"
+            self.observe_count += 1
+        elif self.observe_count == OBSERVE:
+            t = threading.Thread(target=self.trainAllTheTime, args=())
+            t.start()
+            state = "begin the threading"
             self.observe_count += 1
         elif self.session.run(self.timeStep) <= OBSERVE + EXPLORE:
             state = "explore"
@@ -232,3 +241,7 @@ class BrainDQN:
             initial = tf.constant(0.01, shape=shape)
             return tf.Variable(initial)
 
+    def trainAllTheTime(self):
+        while 1:
+            self.trainQNetwork()
+            # sleep(0.1)
