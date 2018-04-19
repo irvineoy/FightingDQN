@@ -9,7 +9,6 @@ from time import sleep
 
 # This is master
 # Hyper Parameters:
-# Todo: change the GAMMA
 FRAME_PER_ACTION = 1
 GAMMA = 0.99  # decay rate of past observations
 OBSERVE = 400.  # timesteps to observe before training
@@ -21,7 +20,7 @@ BATCH_SIZE = 32  # size of minibatch
 UPDATE_TIME = 100
 SAVE_AFTER_STEP = 10000
 REWARD_MAX = 40.0
-LR = 1e-7
+LR = 1e-6
 
 try:
     tf.mul
@@ -68,13 +67,13 @@ class BrainDQN:
             print("Could not find old network weights")
 
     def createQNetwork(self):
-        W_fc1 = self.weight_variable([141*4, 512], "fc1")
-        b_fc1 = self.bias_variable([512], "fc1")
+        W_fc1 = self.weight_variable([141*4, 1024], "fc1")
+        b_fc1 = self.bias_variable([1024], "fc1")
 
-        W_fc2 = self.weight_variable([512, 256], "fc2")
-        b_fc2 = self.bias_variable([256], "fc2")
+        W_fc2 = self.weight_variable([1024, 1024], "fc2")
+        b_fc2 = self.bias_variable([1024], "fc2")
 
-        W_fc3 = self.weight_variable([256, self.actions], "fc3")
+        W_fc3 = self.weight_variable([1024, self.actions], "fc3")
         b_fc3 = self.bias_variable([self.actions], "fc3")
 
         # input layer
@@ -114,11 +113,11 @@ class BrainDQN:
         y_batch = []
         QValue_batch = self.session.run(self.QValueT, feed_dict={self.stateInputT: nextState_batch})
         for i in range(0, BATCH_SIZE):
-            terminal = minibatch[i][4]
-            if terminal:
-                y_batch.append(reward_batch[i])
-            else:
-                y_batch.append(reward_batch[i] + GAMMA * np.max(QValue_batch[i]))
+            # terminal = minibatch[i][4]
+            # if terminal:
+            #     y_batch.append(reward_batch[i])
+            # else:
+            y_batch.append(reward_batch[i] + GAMMA * np.max(QValue_batch[i]))
 
         costValue = self.session.run([self.cost, self.trainStep], feed_dict={
             self.yInput: y_batch,
