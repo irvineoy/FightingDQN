@@ -7,10 +7,9 @@ import threading
 
 # this is cnn
 # Hyper Parameters:
-# Todo: change the GAMMA
-FRAME_PER_ACTION = 1
+FRAME_PER_ACTION = 10
 GAMMA = 0.99  # decay rate of past observations
-OBSERVE = 4000.  # timesteps to observe before training
+OBSERVE = 5000.  # timesteps to observe before training
 EXPLORE = 20000.  # frames over which to anneal epsilon
 FINAL_EPSILON = 0.001  # 0.001 # final value of epsilon
 INITIAL_EPSILON = 0.9  # 0.01 # starting value of epsilon
@@ -19,7 +18,7 @@ BATCH_SIZE = 32  # size of minibatch
 UPDATE_TIME = 100
 SAVE_AFTER_STEP = 10000
 REWARD_MAX = 40.0
-LR = 1e-5
+LR = 1e-6
 
 try:
     tf.mul
@@ -35,6 +34,7 @@ class BrainDQN:
         # init replay memory
         self.replayMemory = deque()
         # init some parameters
+        self.frame_per_action = FRAME_PER_ACTION
         self.timeStep = tf.Variable(0, trainable=False)
         self.observe_count = 0
         self.costValue = 0
@@ -127,19 +127,19 @@ class BrainDQN:
         y_batch = []
         QValue_batch = self.session.run(self.QValueT, feed_dict={self.stateInputT: nextState_batch})
         for i in range(0, BATCH_SIZE):
-            terminal = minibatch[i][4]
-            if terminal:
-                y_batch.append(reward_batch[i])
-            else:
-                y_batch.append(reward_batch[i] + GAMMA * np.max(QValue_batch[i]))
+            # terminal = minibatch[i][4]
+            # if terminal:
+            #     y_batch.append(reward_batch[i])
+            # else:
+            y_batch.append(reward_batch[i] + GAMMA * np.max(QValue_batch[i]))
 
-        cost = self.session.run([self.cost, self.trainStep], feed_dict={
+        costValue = self.session.run([self.cost, self.trainStep], feed_dict={
             self.yInput: y_batch,
             self.actionInput: action_batch,
             self.stateInput: state_batch
         })
-        self.costValue = cost[0]
-        # print("Ths cost is: ", cost[0])
+        self.costValue = costValue[0]
+        # print("The cost is: ", cost[0])
 
         # save network every 100000 iteration
         if self.session.run(self.timeStep) % SAVE_AFTER_STEP == 0:
@@ -166,12 +166,13 @@ class BrainDQN:
             t = threading.Thread(target=self.trainAllTheTime, args=())
             t.start()
             state = "begin the threading"
+            self.observe_count += 1
         elif self.session.run(self.timeStep) <= OBSERVE + EXPLORE:
             state = "explore"
         else:
             state = "train"
 
-        print("TIMESTEP", self.session.run(self.timeStep), "/ STATE", state,
+        print("TIMESTEP", self.session.run(self.timeStep), "/ STATE", state, \
               "/ EPSILON", self.epsilon)
         print("The cost is: ", self.costValue)
 
@@ -183,15 +184,12 @@ class BrainDQN:
         QValue = self.session.run(self.QValue, feed_dict={self.stateInput: [self.currentState]})[0]
         action = np.zeros(self.actions)
         action_index = 0
-        if self.session.run(self.timeStep) % FRAME_PER_ACTION == 0:
-            if random.random() <= self.epsilon:
-                action_index = random.randrange(self.actions)
-                action[action_index] = 1
-            else:
-                action_index = np.argmax(QValue)
-                action[action_index] = 1
+        if random.random() <= self.epsilon:
+            action_index = random.randrange(self.actions)
+            action[action_index] = 1
         else:
-            action[0] = 1  # do nothing
+            action_index = np.argmax(QValue)
+            action[action_index] = 1
 
         # change episilon
         if self.epsilon > FINAL_EPSILON and self.session.run(self.timeStep) > OBSERVE:
