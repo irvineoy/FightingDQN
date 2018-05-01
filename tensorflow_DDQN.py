@@ -9,18 +9,18 @@ from time import sleep
 
 # This is master
 # Hyper Parameters:
-FRAME_PER_ACTION = 1
-GAMMA = 0.99  # decay rate of past observations
-OBSERVE = 400.  # timesteps to observe before training
-EXPLORE = 5000.  # frames over which to anneal epsilon
-FINAL_EPSILON = 0.001  # 0.001 # final value of epsilon
+FRAME_PER_ACTION = 5
+GAMMA = 0.90  # decay rate of past observations
+OBSERVE = 100.  # timesteps to observe before training
+EXPLORE = 10000.  # frames over which to anneal epsilon
+FINAL_EPSILON = 0.1  # 0.001 # final value of epsilon
 INITIAL_EPSILON = 0.9  # 0.01 # starting value of epsilon
 REPLAY_MEMORY = 50000  # number of previous transitions to remember
 BATCH_SIZE = 32  # size of minibatch
-UPDATE_TIME = 100
+UPDATE_TIME = 300
 SAVE_AFTER_STEP = 10000
 REWARD_MAX = 40.0
-LR = 1e-6
+LR = 1e-3
 
 try:
     tf.mul
@@ -41,20 +41,28 @@ class BrainDQN:
         self.costValue = 0
         self.epsilon = INITIAL_EPSILON
         self.actions = actions
+        self.frame_per_action = FRAME_PER_ACTION
         # init Q network
-        self.stateInput, self.QValue, self.W_fc1, self.b_fc1, self.W_fc2, self.b_fc2, self.W_fc3, self.b_fc3 = self.createQNetwork()
+        # self.stateInput, self.QValue, self.W_fc1, self.b_fc1, self.W_fc2, self.b_fc2, self.W_fc3, self.b_fc3 = self.createQNetwork('eval_network')
 
         # init Target Q Network
-        self.stateInputT, self.QValueT, self.W_fc1T, self.b_fc1T, self.W_fc2T, self.b_fc2T, self.W_fc3T, self.b_fc3T = self.createQNetwork()
+        # self.stateInputT, self.QValueT, self.W_fc1T, self.b_fc1T, self.W_fc2T, self.b_fc2T, self.W_fc3T, self.b_fc3T = self.createQNetwork('target_network')
 
-        self.copyTargetQNetworkOperation = [self.W_fc1T.assign(self.W_fc1), self.b_fc1T.assign(self.b_fc1),
-                                            self.W_fc2T.assign(self.W_fc2), self.b_fc2T.assign(self.b_fc2),
-                                            self.W_fc3T.assign(self.W_fc3), self.b_fc3T.assign(self.b_fc3)]
+        # self.copyTargetQNetworkOperation = [self.W_fc1T.assign(self.W_fc1), self.b_fc1T.assign(self.b_fc1),
+        #                                     self.W_fc2T.assign(self.W_fc2), self.b_fc2T.assign(self.b_fc2),
+        #                                     self.W_fc3T.assign(self.W_fc3), self.b_fc3T.assign(self.b_fc3)]
+        eval_names = ['eval_network', tf.GraphKeys.GLOBAL_VARIABLES]
+        target_names = ['target_network', tf.GraphKeys.GLOBAL_VARIABLES]
+        self.stateInput, self.QValue = self.createQNetwork(eval_names)
+        self.stateInputT, self.QValueT = self.createQNetwork(target_names)
+        e_params = tf.get_collection('eval_network')
+        t_params = tf.get_collection('target_network')
+        self.copyTargetQNetworkOperation = [tf.assign(e, t) for e, t in zip(e_params, t_params)]
 
         self.createTrainingMethod()
 
         # saving and loading networks
-        self.saver = tf.train.Saver(max_to_keep=4)
+        self.saver = tf.train.Saver(max_to_keep=1)
         self.session = tf.Session()
         self.session.run(tf.global_variables_initializer())
         self.session.run(tf.local_variables_initializer())
@@ -66,20 +74,20 @@ class BrainDQN:
         else:
             print("Could not find old network weights")
 
-    def createQNetwork(self):
-        W_fc1 = self.weight_variable([141*4, 1024], "fc1")
-        b_fc1 = self.bias_variable([1024], "fc1")
+    def createQNetwork(self, c_name):
+        W_fc1 = self.weight_variable([141, 80], "fc1", c_name)
+        b_fc1 = self.bias_variable([80], "fc1", c_name)
 
-        W_fc2 = self.weight_variable([1024, 1024], "fc2")
-        b_fc2 = self.bias_variable([1024], "fc2")
+        W_fc2 = self.weight_variable([80, 80], "fc2", c_name)
+        b_fc2 = self.bias_variable([80], "fc2", c_name)
 
-        W_fc3 = self.weight_variable([1024, self.actions], "fc3")
-        b_fc3 = self.bias_variable([self.actions], "fc3")
+        W_fc3 = self.weight_variable([80, self.actions], "fc3", c_name)
+        b_fc3 = self.bias_variable([self.actions], "fc3", c_name)
 
         # input layer
-        stateInput = tf.placeholder("float", [None, 141, 4])
+        stateInput = tf.placeholder("float", [None, 141])
 
-        h_fc1 = tf.nn.relu(tf.nn.bias_add(tf.matmul(tf.reshape(stateInput, [-1, 141*4]), W_fc1), b_fc1))
+        h_fc1 = tf.nn.relu(tf.nn.bias_add(tf.matmul(stateInput, W_fc1), b_fc1))
         h_fc2 = tf.nn.relu(tf.nn.bias_add(tf.matmul(h_fc1, W_fc2), b_fc2))
 
         # Q Value layer
@@ -88,7 +96,8 @@ class BrainDQN:
         # stateInput = tf.placeholder("float", [None, 141])
         # h_fc1 = tf.layers.dense(inputs=stateInput, units=80, activation=tf.nn.relu)
 
-        return stateInput, QValue, W_fc1, b_fc1, W_fc2, b_fc2, W_fc3, b_fc3
+        # return stateInput, QValue, W_fc1, b_fc1, W_fc2, b_fc2, W_fc3, b_fc3
+        return stateInput, QValue
 
     def copyTargetQNetwork(self):
         self.session.run(self.copyTargetQNetworkOperation)
@@ -134,11 +143,12 @@ class BrainDQN:
         if self.session.run(self.timeStep) % UPDATE_TIME == 0:
             self.copyTargetQNetwork()
 
-    def setPerception(self, nextObservation, action, reward, terminal):
+    def setPerception(self, nextObservation, action, reward):
         # newState = np.append(nextObservation,self.currentState[:,:,1:],axis = 2)
-        newState = np.append(self.currentState[:, 1:], np.reshape(nextObservation, (141, 1)), axis=1)
+        # newState = np.append(self.currentState[:, 1:], np.reshape(nextObservation, (141, 1)), axis=1)
+        newState = np.array(nextObservation)
         reward_normalize = reward / REWARD_MAX
-        self.replayMemory.append((self.currentState, action, reward_normalize, newState, terminal))
+        self.replayMemory.append((self.currentState, action, reward_normalize, newState))
         if len(self.replayMemory) > REPLAY_MEMORY:
             self.replayMemory.popleft()
         if self.observe_count > OBSERVE:
@@ -160,26 +170,23 @@ class BrainDQN:
             state = "train"
 
         print("TIMESTEP", self.session.run(self.timeStep), "/ STATE", state, \
-              "/ EPSILON", self.epsilon)
+              "/ EPSILON", round(self.epsilon, 6))
         print("The cost is: ", self.costValue)
 
         self.currentState = newState
         # self.timeStep += 1
 
-    def getAction(self):
+    def getAction(self, observation):
         # QValue = self.QValue.eval(feed_dict={self.stateInput: self.currentState})[0]
-        QValue = self.session.run(self.QValue, feed_dict={self.stateInput: [self.currentState]})[0]
+        QValue = self.session.run(self.QValue, feed_dict={self.stateInput: [observation]})[0]
         action = np.zeros(self.actions)
         action_index = 0
-        if self.session.run(self.timeStep) % FRAME_PER_ACTION == 0:
-            if random.random() <= self.epsilon:
-                action_index = random.randrange(self.actions)
-                action[action_index] = 1
-            else:
-                action_index = np.argmax(QValue)
-                action[action_index] = 1
+        if random.random() <= self.epsilon:
+            action_index = random.randrange(self.actions)
+            action[action_index] = 1
         else:
-            action[0] = 1  # do nothing
+            action_index = np.argmax(QValue)
+            action[action_index] = 1
 
         # change episilon
         if self.epsilon > FINAL_EPSILON and self.session.run(self.timeStep) > OBSERVE:
@@ -187,25 +194,18 @@ class BrainDQN:
         return action
 
     def setInitState(self, observation):
-        # init_g = tf.global_variables_initializer()
-        # init_l = tf.local_variables_initializer()
-        # with tf.Session() as sess:
-        #     with tf_debug.LocalCLIDebugWrapperSession(sess) as sess:
-        #         sess.run(init_g)
-        #         sess.run(init_l)
-        self.currentState = np.stack((observation, observation, observation, observation), axis=1)
+        self.currentState = np.array(observation)
 
-    def weight_variable(self, shape, name):
+    def weight_variable(self, shape, name, collection):
         with tf.variable_scope(name):
             initial = tf.truncated_normal(shape, stddev=0.01)
-            return tf.Variable(initial)
+            return tf.Variable(initial, collections=collection)
 
-    def bias_variable(self, shape, name):
+    def bias_variable(self, shape, name, collection):
         with tf.variable_scope(name):
             initial = tf.constant(0.01, shape=shape)
-            return tf.Variable(initial)
+            return tf.Variable(initial, collections=collection)
 
     def trainAllTheTime(self):
         while 1:
             self.trainQNetwork()
-            # sleep(0.1)

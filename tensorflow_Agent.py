@@ -19,7 +19,8 @@ class tensorflow_agent(object):
         self.action = 0
         self.MaxPoint = 120  # max projectile damage (ver 4.10)
         self.SubPoint = 0  # max damage in usual action (ver 4.10)
-        self.countProcess = 0
+        self.frame_per_action = self.brain.frame_per_action
+        # self.countProcess = 0
         self.frameData = None
         self.nonDelay = None
         self.currentFrameNum = None
@@ -106,8 +107,8 @@ class tensorflow_agent(object):
         # Return the input for the current frame
         return self.inputKey
 
-    def playAction(self):
-        self.action = self.brain.getAction()
+    def playAction(self, state):
+        self.action = self.brain.getAction(state)
         action_name = self.actionMap.actionMap[np.argmax(self.action)]
         print("current action is: ", action_name)
         self.cc.commandCall(action_name)
@@ -251,7 +252,7 @@ class tensorflow_agent(object):
         if finishRound == 0:
             # Defence reward = SubPoint - (currentMyHp - lastMyHp )
             # Attack reward = currentOppHp - lastOppHp
-            self.reward = (self.SubPoint - (abs(self.nonDelay.getCharacter(self.player).getHp()) - self.lastHp_my)) / 3.0
+            self.reward = (self.SubPoint - (abs(self.nonDelay.getCharacter(self.player).getHp()) - self.lastHp_my))
             self.reward += 1 * (abs(self.nonDelay.getCharacter(not self.player).getHp()) - self.lastHp_opp)
 
             self.R += self.reward
@@ -280,6 +281,7 @@ class tensorflow_agent(object):
 
     def processing(self):
         # First we check whether we are at the end of the round
+        self.frame_per_action -= 1
         if self.frameData.getEmptyFlag() or self.frameData.getRemainingFramesNumber() <= 0:
             self.isGameJustStarted = True
             return
@@ -309,25 +311,29 @@ class tensorflow_agent(object):
             state = self.getObservation()
             self.brain.setInitState(tuple(state))
             self.setLastHp()
-            self.playAction()
+            self.playAction(state)
 
         elif self.currentFrameNum > 3550 and self.isFinishd == 0:
             reward = self.makeReward(1)
             state = self.getObservation()
-            self.playAction()
-            self.brain.setPerception(state, self.action, reward, True)
+            self.brain.setPerception(state, self.action, reward)
+
+            self.playAction(state)
             self.isFinishd = 1
 
         elif self.ableAction():
-            reward = self.makeReward(0)
-            state = self.getObservation()
-            self.setLastHp()
-            self.playAction()
-            print("\n")
-            self.brain.setPerception(state, self.action, reward, False)
+            if self.frame_per_action <= 0:
+                reward = self.makeReward(0)
+                state = self.getObservation()
+                self.brain.setPerception(state, self.action, reward)
+
+                self.setLastHp()
+                self.playAction(state)
+                self.frame_per_action = self.brain.frame_per_action
+                print("\n")
 
         # print("The countProcess: ", self.countProcess)
-        self.countProcess += 1
+        # self.countProcess += 1
 
         # nextObservation = self.getObservation()
         # reward = self.makeReward(self.isGameJustStarted)
