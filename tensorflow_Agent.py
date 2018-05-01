@@ -1,4 +1,5 @@
 from py4j.java_gateway import get_field
+# from RL_brain import BrainDQN
 from tensorflow_DDQN import BrainDQN
 from TrainModule import ActionMap
 import numpy as np
@@ -8,7 +9,6 @@ import csv
 # import ipdb;ipdb.set_trace()
 # this is cnn
 actions = 40
-
 
 class tensorflow_agent(object):
     def __init__(self, gateway):
@@ -34,6 +34,10 @@ class tensorflow_agent(object):
         self.isFinishd = None
         self.reward = None
         self.frame_per_action = self.brain.frame_per_action
+        self.screenData = None
+        self.win = None
+        self.width = self.brain.width
+        self.height = self.brain.height
 
     def close(self):
         pass
@@ -47,26 +51,29 @@ class tensorflow_agent(object):
 
     # please define this method when you use FightingICE version 3.20 or later
     def roundEnd(self, x, y, z):
-        score = (self.nonDelay.getCharacter(not self.player).getHp() / (
-        self.nonDelay.getCharacter(not self.player).getHp() + self.nonDelay.getCharacter(self.player).getHp())) * 1000
-        csvList = []
-        csvList.append(self.currentRoundNum)
-        csvList.append(self.R)
-        csvList.append(self.brain.epsilon)
-        csvList.append(abs(self.nonDelay.getCharacter(self.player).getHp()))
-        csvList.append(abs(self.nonDelay.getCharacter(not self.player).getHp()))
-        csvList.append(score)
-        csvList.append(self.win)
-        with open("./saved_networks/resultData.csv", 'a') as f:
-            writer = csv.writer(f, lineterminator='\n')
-            writer.writerow(csvList)
-        # with open('./saved_networks/battleResult.csv', 'a') as file:
-        # file.write("The current step is: " + str(self.brain.session.run(self.brain.timeStep)))
-        # file.write("  frame number: " + str(z) + "  p1: " + str(x) + "  p2: " + str(y))
-        # file.write("\n")
-        print(x)
-        print(y)
-        print(z)
+        try:
+            score = (self.nonDelay.getCharacter(not self.player).getHp() / (
+            self.nonDelay.getCharacter(not self.player).getHp() + self.nonDelay.getCharacter(self.player).getHp())) * 1000
+            csvList = []
+            csvList.append(self.currentRoundNum)
+            csvList.append(self.R)
+            csvList.append(self.brain.epsilon)
+            csvList.append(abs(self.nonDelay.getCharacter(self.player).getHp()))
+            csvList.append(abs(self.nonDelay.getCharacter(not self.player).getHp()))
+            csvList.append(score)
+            csvList.append(self.win)
+            with open("./saved_networks/resultData.csv", 'a') as f:
+                writer = csv.writer(f, lineterminator='\n')
+                writer.writerow(csvList)
+            # with open('./saved_networks/battleResult.csv', 'a') as file:
+            # file.write("The current step is: " + str(self.brain.session.run(self.brain.timeStep)))
+            # file.write("  frame number: " + str(z) + "  p1: " + str(x) + "  p2: " + str(y))
+            # file.write("\n")
+            print(x)
+            print(y)
+            print(z)
+        except Exception as e:
+            print(e)
 
     def makeResultFile(self):
         if not os.path.exists("./saved_networks/"):
@@ -90,7 +97,13 @@ class tensorflow_agent(object):
 
     # please define this method when you use FightingICE version 4.00 or later
     def getScreenData(self, sd):
-        pass
+        self.screenData = sd
+
+    def getObservation(self):
+        imageData = self.screenData.getDisplayByteBufferAsBytes(self.width, self.height, True)
+        imageData = [int(i) for i in imageData]
+        imageData = np.array(imageData)
+        return imageData.reshape((self.width, self.height, 1))
 
     def initialize(self, gameData, player):
         # Initializing the command center, the simulator and some other things
@@ -113,141 +126,6 @@ class tensorflow_agent(object):
         action_name = self.actionMap.actionMap[np.argmax(self.action)]
         print("current action is: ", action_name)
         self.cc.commandCall(action_name)
-
-
-    def getObservation(self):
-        my = self.frameData.getCharacter(self.player)
-        opp = self.frameData.getCharacter(not self.player)
-
-        myHp = abs(my.getHp() / 500)
-        myEnergy = my.getEnergy() / 300
-        myX = ((my.getLeft() + my.getRight()) / 2) / 960
-        myY = ((my.getBottom() + my.getTop()) / 2) / 640
-        mySpeedX = my.getSpeedX() / 15
-        mySpeedY = my.getSpeedY() / 28
-        myState = my.getAction().ordinal()
-
-        oppHp = abs(opp.getHp() / 500)
-        oppEnergy = opp.getEnergy() / 300
-        oppX = ((opp.getLeft() + opp.getRight()) / 2) / 960
-        oppY = ((opp.getBottom() + opp.getTop()) / 2) / 640
-        oppSpeedX = opp.getSpeedX() / 15
-        oppSpeedY = opp.getSpeedY() / 28
-        oppState = opp.getAction().ordinal()
-        oppRemainingFrame = opp.getRemainingFrame() / 70
-
-        observation = []
-        observation.append(myHp)
-        observation.append(myEnergy)
-        observation.append(myX)
-        observation.append(myY)
-        if mySpeedX < 0:
-            observation.append(0)
-        else:
-            observation.append(1)
-        observation.append(abs(mySpeedX))
-        if mySpeedY < 0:
-            observation.append(0)
-        else:
-            observation.append(1)
-        observation.append(abs(mySpeedY))
-        for i in range(56):
-            if i == myState:
-                observation.append(1)
-            else:
-                observation.append(0)
-
-        observation.append(oppHp)
-        observation.append(oppEnergy)
-        observation.append(oppX)
-        observation.append(oppY)
-        if oppSpeedX < 0:
-            observation.append(0)
-        else:
-            observation.append(1)
-        observation.append(abs(oppSpeedX))
-        if oppSpeedY < 0:
-            observation.append(0)
-        else:
-            observation.append(1)
-        observation.append(abs(oppSpeedY))
-        for i in range(56):
-            if i == oppState:
-                observation.append(1)
-            else:
-                observation.append(0)
-        # observation.append(oppRemainingFrame)
-
-        myProjectiles = self.frameData.getProjectilesByP1()
-        oppProjectiles = self.frameData.getProjectilesByP2()
-
-        if len(myProjectiles) == 2:
-            myHitDamage = myProjectiles[0].getHitDamage() / 200.0
-            myHitAreaNowX = ((myProjectiles[0].getCurrentHitArea().getLeft() + myProjectiles[
-                0].getCurrentHitArea().getRight()) / 2) / 960.0
-            myHitAreaNowY = ((myProjectiles[0].getCurrentHitArea().getTop() + myProjectiles[
-                0].getCurrentHitArea().getBottom()) / 2) / 640.0
-            observation.append(myHitDamage)
-            observation.append(myHitAreaNowX)
-            observation.append(myHitAreaNowY)
-            myHitDamage = myProjectiles[1].getHitDamage() / 200.0
-            myHitAreaNowX = ((myProjectiles[1].getCurrentHitArea().getLeft() + myProjectiles[
-                1].getCurrentHitArea().getRight()) / 2) / 960.0
-            myHitAreaNowY = ((myProjectiles[1].getCurrentHitArea().getTop() + myProjectiles[
-                1].getCurrentHitArea().getBottom()) / 2) / 640.0
-            observation.append(myHitDamage)
-            observation.append(myHitAreaNowX)
-            observation.append(myHitAreaNowY)
-        elif len(myProjectiles) == 1:
-            myHitDamage = myProjectiles[0].getHitDamage() / 200.0
-            myHitAreaNowX = ((myProjectiles[0].getCurrentHitArea().getLeft() + myProjectiles[
-                0].getCurrentHitArea().getRight()) / 2) / 960.0
-            myHitAreaNowY = ((myProjectiles[0].getCurrentHitArea().getTop() + myProjectiles[
-                0].getCurrentHitArea().getBottom()) / 2) / 640.0
-            observation.append(myHitDamage)
-            observation.append(myHitAreaNowX)
-            observation.append(myHitAreaNowY)
-            for t in range(3):
-                observation.append(0.0)
-        else:
-            for t in range(6):
-                observation.append(0.0)
-
-        if len(oppProjectiles) == 2:
-            oppHitDamage = oppProjectiles[0].getHitDamage() / 200.0
-            oppHitAreaNowX = ((oppProjectiles[0].getCurrentHitArea().getLeft() + oppProjectiles[
-                0].getCurrentHitArea().getRight()) / 2) / 960.0
-            oppHitAreaNowY = ((oppProjectiles[0].getCurrentHitArea().getTop() + oppProjectiles[
-                0].getCurrentHitArea().getBottom()) / 2) / 640.0
-            observation.append(oppHitDamage)
-            observation.append(oppHitAreaNowX)
-            observation.append(oppHitAreaNowY)
-            oppHitDamage = oppProjectiles[1].getHitDamage() / 200.0
-            oppHitAreaNowX = ((oppProjectiles[1].getCurrentHitArea().getLeft() + oppProjectiles[
-                1].getCurrentHitArea().getRight()) / 2) / 960.0
-            oppHitAreaNowY = ((oppProjectiles[1].getCurrentHitArea().getTop() + oppProjectiles[
-                1].getCurrentHitArea().getBottom()) / 2) / 640.0
-            observation.append(oppHitDamage)
-            observation.append(oppHitAreaNowX)
-            observation.append(oppHitAreaNowY)
-        elif len(oppProjectiles) == 1:
-            oppHitDamage = oppProjectiles[0].getHitDamage() / 200.0
-            oppHitAreaNowX = ((oppProjectiles[0].getCurrentHitArea().getLeft() + oppProjectiles[
-                0].getCurrentHitArea().getRight()) / 2) / 960.0
-            oppHitAreaNowY = ((oppProjectiles[0].getCurrentHitArea().getTop() + oppProjectiles[
-                0].getCurrentHitArea().getBottom()) / 2) / 640.0
-            observation.append(oppHitDamage)
-            observation.append(oppHitAreaNowX)
-            observation.append(oppHitAreaNowY)
-            for t in range(3):
-                observation.append(0.0)
-        else:
-            for t in range(6):
-                observation.append(0.0)
-
-        # print(len(observation))  #141
-        # type(observation) -> list
-        return list(map(lambda x: float(x), observation))
 
     def makeReward(self, finishRound):
         if finishRound == 0:
@@ -281,63 +159,61 @@ class tensorflow_agent(object):
             return False
 
     def processing(self):
-        # First we check whether we are at the end of the round
-        self.frame_per_action -= 1
-        if self.frameData.getEmptyFlag() or self.frameData.getRemainingFramesNumber() <= 0:
-            self.isGameJustStarted = True
-            return
-        if not self.isGameJustStarted:
-            # Simulate the delay and look ahead 2 frames. The simulator class exists already in FightingICE
-            self.frameData = self.simulator.simulate(self.frameData, self.player, None, None, 17)
-        # You can pass actions to the simulator by writing as follows:
-        # actions = self.gateway.jvm.java.util.ArrayDeque()
-        # actions.add(self.gateway.jvm.enumerate.Action.STAND_A)
-        # self.frameData = self.simulator.simulate(self.frameData, self.player, actions, actions, 17)
-        else:
-            # this else is used only 1 time in first of round
-            self.isGameJustStarted = False
-            self.currentRoundNum = self.frameData.getRound()
-            self.R = 0
-            self.isFinishd = 0
+        try:
+            # First we check whether we are at the end of the round
+            self.frame_per_action -= 1
+            if self.frameData.getEmptyFlag() or self.frameData.getRemainingFramesNumber() <= 0:
+                self.isGameJustStarted = True
+                return
+            if not self.isGameJustStarted:
+                # Simulate the delay and look ahead 2 frames. The simulator class exists already in FightingICE
+                self.frameData = self.simulator.simulate(self.frameData, self.player, None, None, 17)
+            # You can pass actions to the simulator by writing as follows:
+            # actions = self.gateway.jvm.java.util.ArrayDeque()
+            # actions.add(self.gateway.jvm.enumerate.Action.STAND_A)
+            # self.frameData = self.simulator.simulate(self.frameData, self.player, actions, actions, 17)
+            else:
+                # this else is used only 1 time in first of round
+                self.isGameJustStarted = False
+                self.currentRoundNum = self.frameData.getRound()
+                self.R = 0
+                self.isFinishd = 0
 
-        if self.cc.getSkillFlag():
-            self.inputKey = self.cc.getSkillKey()
-            return
-        self.inputKey.empty()
-        self.cc.skillCancel()
+            if self.cc.getSkillFlag():
+                self.inputKey = self.cc.getSkillKey()
+                return
+            self.inputKey.empty()
+            self.cc.skillCancel()
 
-        # Just spam kick
-        # self.cc.commandCall("B")
-        if self.currentFrameNum == 14:
-            state = self.getObservation()
-            self.brain.setInitState(tuple(state))
-            self.setLastHp()
-            self.playAction()
-
-        elif self.currentFrameNum > 3550 and self.isFinishd == 0:
-            reward = self.makeReward(1)
-            state = self.getObservation()
-            self.playAction()
-            self.brain.setPerception(state, self.action, reward, True)
-            self.isFinishd = 1
-
-        elif self.ableAction():
-            if self.frame_per_action <= 0:
-                reward = self.makeReward(0)
+            # Just spam kick
+            # self.cc.commandCall("B")
+            if self.currentFrameNum == 14:
                 state = self.getObservation()
+                self.brain.setInitState(state)
                 self.setLastHp()
                 self.playAction()
-                print("\n")
-                self.brain.setPerception(state, self.action, reward, False)
 
-        # print("The countProcess: ", self.countProcess)
-        self.countProcess += 1
+            elif self.currentFrameNum > 3550 and self.isFinishd == 0:
+                reward = self.makeReward(1)
+                state = self.getObservation()
+                self.brain.setPerception(state, self.action, reward, True)
 
-        # nextObservation = self.getObservation()
-        # reward = self.makeReward(self.isGameJustStarted)
-        # print(reward)
-        # self.brain.setPerception(nextObservation, self.action, reward, self.isGameJustStarted)
+                self.playAction()
+                self.isFinishd = 1
 
-    # This part is mandatory
+            elif self.ableAction():
+                if self.frame_per_action <= 0:
+                    reward = self.makeReward(0)
+                    state = self.getObservation()
+                    self.brain.setPerception(state, self.action, reward, False)
+
+                    self.setLastHp()
+                    self.playAction()
+                    print("\n")
+
+            self.countProcess += 1
+        except Exception as e:
+            print(e)
+
     class Java:
         implements = ["aiinterface.AIInterface"]

@@ -1,14 +1,10 @@
 import sys
 from time import sleep
 from py4j.java_gateway import JavaGateway, GatewayParameters, CallbackServerParameters, get_field
-from KickAI import KickAI
 from MacheteModified import Machete
 from tensorflow_Agent import tensorflow_agent
-import subprocess
 
 
-subprocess.Popen('cd ..;bash macOS.sh', shell=True)
-# sleep(4)
 def check_args(args):
     for i in range(argc):
         if args[i] == "-n" or args[i] == "--n" or args[i] == "--number":
