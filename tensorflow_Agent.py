@@ -4,10 +4,9 @@ from TrainModule import ActionMap
 import numpy as np
 import os
 import csv
-
 # import crash_on_ipy
 # import ipdb;ipdb.set_trace()
-# This is multihead
+# This is master
 actions = 40
 
 
@@ -20,7 +19,8 @@ class tensorflow_agent(object):
         self.action = 0
         self.MaxPoint = 120  # max projectile damage (ver 4.10)
         self.SubPoint = 0  # max damage in usual action (ver 4.10)
-        self.countProcess = 0
+        self.frame_per_action = self.brain.frame_per_action
+        # self.countProcess = 0
         self.frameData = None
         self.nonDelay = None
         self.currentFrameNum = None
@@ -34,9 +34,39 @@ class tensorflow_agent(object):
         self.currentRoundNum = None
         self.isFinishd = None
         self.reward = None
+        self.frame_per_action = self.brain.frame_per_action
 
     def close(self):
         pass
+
+    def getInformation(self, frameData, nonDelay):
+        # Getting the frame data of the current frame
+        self.frameData = frameData
+        self.cc.setFrameData(self.frameData, self.player)
+        self.nonDelay = nonDelay
+        self.currentFrameNum = nonDelay.getFramesNumber()  # first frame is 14
+
+    # please define this method when you use FightingICE version 3.20 or later
+    def roundEnd(self, x, y, z):
+        score = (self.nonDelay.getCharacter(not self.player).getHp()/(self.nonDelay.getCharacter(not self.player).getHp() + self.nonDelay.getCharacter(self.player).getHp())) * 1000
+        csvList = []
+        csvList.append(self.currentRoundNum)
+        csvList.append(self.R)
+        csvList.append(self.brain.epsilon)
+        csvList.append(abs(self.nonDelay.getCharacter(self.player).getHp()))
+        csvList.append(abs(self.nonDelay.getCharacter(not self.player).getHp()))
+        csvList.append(score)
+        csvList.append(self.win)
+        with open("./saved_networks/resultData.csv", 'a') as f:
+            writer = csv.writer(f, lineterminator='\n')
+            writer.writerow(csvList)
+        # with open('./saved_networks/battleResult.csv', 'a') as file:
+        #     file.write("The current step is: " + str(self.brain.session.run(self.brain.timeStep)))
+        #     file.write("  frame number: " + str(z) + "  p1: " + str(x) + "  p2: " + str(y))
+        #     file.write("\n")
+        print(x)
+        print(y)
+        print(z)
 
     def makeResultFile(self):
         if not os.path.exists("./saved_networks/"):
@@ -58,38 +88,6 @@ class tensorflow_agent(object):
         writer.writerow(csvList)
         f.close()
 
-    def getInformation(self, frameData, nonDelay):
-        # Getting the frame data of the current frame
-        self.frameData = frameData
-        self.cc.setFrameData(self.frameData, self.player)
-        self.nonDelay = nonDelay
-        self.currentFrameNum = nonDelay.getFramesNumber()  # first frame is 14
-
-    # please define this method when you use FightingICE version 3.20 or later
-    def roundEnd(self, x, y, z):
-        score = (self.nonDelay.getCharacter(not self.player).getHp() / (
-                self.nonDelay.getCharacter(not self.player).getHp() + self.nonDelay.getCharacter(
-            self.player).getHp())) * 1000
-        csvList = []
-        csvList.append(self.currentRoundNum)
-        csvList.append(self.R)
-        csvList.append(self.brain.epsilon)
-        csvList.append(abs(self.nonDelay.getCharacter(self.player).getHp()))
-        csvList.append(abs(self.nonDelay.getCharacter(not self.player).getHp()))
-        csvList.append(score)
-        csvList.append(self.win)
-
-        with open("./saved_networks/resultData.csv", 'a') as f:
-            writer = csv.writer(f, lineterminator='\n')
-            writer.writerow(csvList)
-        # with open('./saved_networks/battleResult.csv', 'a') as file:
-        # file.write("The current step is: " + str(self.brain.session.run(self.brain.timeStep)))
-        # file.write("  frame number: " + str(z) + "  p1: " + str(x) + "  p2: " + str(y))
-        # file.write("\n")
-        print(x)
-        print(y)
-        print(z)
-
     # please define this method when you use FightingICE version 4.00 or later
     def getScreenData(self, sd):
         pass
@@ -110,11 +108,12 @@ class tensorflow_agent(object):
         # Return the input for the current frame
         return self.inputKey
 
-    def playAction(self):
-        self.action = self.brain.getAction()
+    def playAction(self, state):
+        self.action = self.brain.getAction(state)
         action_name = self.actionMap.actionMap[np.argmax(self.action)]
         print("current action is: ", action_name)
         self.cc.commandCall(action_name)
+
 
     def getObservation(self):
         my = self.frameData.getCharacter(self.player)
@@ -284,6 +283,7 @@ class tensorflow_agent(object):
 
     def processing(self):
         # First we check whether we are at the end of the round
+        self.frame_per_action -= 1
         if self.frameData.getEmptyFlag() or self.frameData.getRemainingFramesNumber() <= 0:
             self.isGameJustStarted = True
             return
@@ -313,25 +313,30 @@ class tensorflow_agent(object):
             state = self.getObservation()
             self.brain.setInitState(tuple(state))
             self.setLastHp()
-            self.playAction()
+            self.playAction(state)
 
-        elif self.currentFrameNum > 3570 and self.isFinishd == 0:
+        elif self.currentFrameNum > 3550 and self.isFinishd == 0:
             reward = self.makeReward(1)
             state = self.getObservation()
-            self.playAction()
-            self.brain.setPerception(state, self.action, reward, True)
+            self.brain.setPerception(state, self.action, reward)
+
+            self.playAction(state)
             self.isFinishd = 1
 
         elif self.ableAction():
-            reward = self.makeReward(0)
-            state = self.getObservation()
-            self.setLastHp()
-            self.playAction()
-            print("\n")
-            self.brain.setPerception(state, self.action, reward, False)
+            if self.frame_per_action <= 0:
+                reward = self.makeReward(0)
+                state = self.getObservation()
+
+                self.brain.setPerception(state, self.action, reward)
+
+                self.setLastHp()
+                self.playAction(state)
+                self.frame_per_action = self.brain.frame_per_action
+                print("\n")
 
         # print("The countProcess: ", self.countProcess)
-        self.countProcess += 1
+        # self.countProcess += 1
 
         # nextObservation = self.getObservation()
         # reward = self.makeReward(self.isGameJustStarted)
