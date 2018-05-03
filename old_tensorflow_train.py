@@ -1,7 +1,7 @@
 import sys
 from py4j.java_gateway import JavaGateway, GatewayParameters, CallbackServerParameters, get_field
-# from KickAI import KickAI
-# from MacheteModified import Machete
+from KickAI import KickAI
+from MacheteModified import Machete
 from tensorflow_Agent import tensorflow_agent
 
 

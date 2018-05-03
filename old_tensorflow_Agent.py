@@ -1,5 +1,5 @@
 from py4j.java_gateway import get_field
-from RL_brain import DuelingDQN
+from tensorflow_DDQN import BrainDQN
 from TrainModule import ActionMap
 import numpy as np
 import os
@@ -13,13 +13,14 @@ actions = 40
 class tensorflow_agent(object):
     def __init__(self, gateway):
         self.gateway = gateway
-        self.DuelingDQN = DuelingDQN(actions, 141)
+        self.brain = BrainDQN(actions)
         self.actionMap = ActionMap()
         self.R = 0  # total reward in a round
         self.action = 0
         self.MaxPoint = 120  # max projectile damage (ver 4.10)
         self.SubPoint = 0  # max damage in usual action (ver 4.10)
-        self.countProcess = 0
+        self.frame_per_action = self.brain.frame_per_action
+        # self.countProcess = 0
         self.frameData = None
         self.nonDelay = None
         self.currentFrameNum = None
@@ -33,8 +34,6 @@ class tensorflow_agent(object):
         self.currentRoundNum = None
         self.isFinishd = None
         self.reward = None
-        self.state = []
-        self.frame_per_action = self.DuelingDQN.frame_per_action
 
     def close(self):
         pass
@@ -52,7 +51,7 @@ class tensorflow_agent(object):
         csvList = []
         csvList.append(self.currentRoundNum)
         csvList.append(self.R)
-        csvList.append(self.DuelingDQN.epsilon)
+        csvList.append(self.brain.epsilon)
         csvList.append(abs(self.nonDelay.getCharacter(self.player).getHp()))
         csvList.append(abs(self.nonDelay.getCharacter(not self.player).getHp()))
         csvList.append(score)
@@ -109,8 +108,8 @@ class tensorflow_agent(object):
         return self.inputKey
 
     def playAction(self, state):
-        self.action = self.DuelingDQN.get_action(state)
-        action_name = self.actionMap.actionMap[self.action]
+        self.action = self.brain.getAction(state)
+        action_name = self.actionMap.actionMap[np.argmax(self.action)]
         print("current action is: ", action_name)
         self.cc.commandCall(action_name)
 
@@ -247,8 +246,7 @@ class tensorflow_agent(object):
 
         # print(len(observation))  #141
         # type(observation) -> list
-        # return list(map(lambda x: float(x), observation))
-        return np.array(observation, dtype=np.float64)
+        return list(map(lambda x: float(x), observation))
 
     def makeReward(self, finishRound):
         if finishRound == 0:
@@ -264,9 +262,7 @@ class tensorflow_agent(object):
         else:
             if abs(self.nonDelay.getCharacter(self.player).getHp()) < abs(
                     self.nonDelay.getCharacter(not self.player).getHp()):
-                self.reward = (self.SubPoint - (abs(self.nonDelay.getCharacter(self.player).getHp()) - self.lastHp_my))
-                self.reward += 1 * (abs(self.nonDelay.getCharacter(not self.player).getHp()) - self.lastHp_opp)
-                self.R += self.reward
+                self.R += self.MaxPoint
                 self.win = 1
                 return self.MaxPoint
             else:
@@ -284,12 +280,18 @@ class tensorflow_agent(object):
             return False
 
     def processing(self):
+        # First we check whether we are at the end of the round
         self.frame_per_action -= 1
         if self.frameData.getEmptyFlag() or self.frameData.getRemainingFramesNumber() <= 0:
             self.isGameJustStarted = True
             return
         if not self.isGameJustStarted:
+            # Simulate the delay and look ahead 2 frames. The simulator class exists already in FightingICE
             self.frameData = self.simulator.simulate(self.frameData, self.player, None, None, 17)
+        # You can pass actions to the simulator by writing as follows:
+        # actions = self.gateway.jvm.java.util.ArrayDeque()
+        # actions.add(self.gateway.jvm.enumerate.Action.STAND_A)
+        # self.frameData = self.simulator.simulate(self.frameData, self.player, actions, actions, 17)
         else:
             # this else is used only 1 time in first of round
             self.isGameJustStarted = False
@@ -303,36 +305,40 @@ class tensorflow_agent(object):
         self.inputKey.empty()
         self.cc.skillCancel()
 
+        # Just spam kick
+        # self.cc.commandCall("B")
         if self.currentFrameNum == 14:
-            self.state = self.getObservation()
-            # self.DuelingDQN.setInitState(tuple(state))
+            state = self.getObservation()
+            self.brain.setInitState(tuple(state))
             self.setLastHp()
-            self.playAction(self.state)
+            self.playAction(state)
 
         elif self.currentFrameNum > 3550 and self.isFinishd == 0:
             reward = self.makeReward(1)
-            state_ = self.getObservation()
-            self.DuelingDQN.store_transition(self.state, self.action, reward, state_)
+            state = self.getObservation()
+            self.brain.setPerception(state, self.action, reward)
 
-            self.playAction(state_)
+            self.playAction(state)
             self.isFinishd = 1
-            self.DuelingDQN.learn()
 
         elif self.ableAction():
-            self.DuelingDQN.learn()
             if self.frame_per_action <= 0:
                 reward = self.makeReward(0)
-                state_ = self.getObservation()
-                self.DuelingDQN.store_transition(self.state, self.action, reward, state_)
+                state = self.getObservation()
+                self.brain.setPerception(state, self.action, reward)
 
                 self.setLastHp()
-                self.playAction(state_)
-                self.state = state_
+                self.playAction(state)
+                self.frame_per_action = self.brain.frame_per_action
                 print("\n")
 
-                self.frame_per_action = self.DuelingDQN.frame_per_action
+        # print("The countProcess: ", self.countProcess)
+        # self.countProcess += 1
 
-        self.countProcess += 1
+        # nextObservation = self.getObservation()
+        # reward = self.makeReward(self.isGameJustStarted)
+        # print(reward)
+        # self.brain.setPerception(nextObservation, self.action, reward, self.isGameJustStarted)
 
     # This part is mandatory
     class Java:
