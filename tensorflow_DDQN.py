@@ -11,7 +11,7 @@ from time import sleep
 # Hyper Parameters:
 
 FRAME_PER_ACTION = 5
-GAMMA = 0.90  # decay rate of past observations
+GAMMA = 0.10  # decay rate of past observations
 OBSERVE = 500.  # timesteps to observe before training
 EXPLORE = 10000.  # frames over which to anneal epsilon
 FINAL_EPSILON = 0.1  # 0.001 # final value of epsilon
@@ -156,16 +156,16 @@ class BrainDQN:
         if len(self.replayMemory) > REPLAY_MEMORY:
             self.replayMemory.popleft()
         if self.observe_count > OBSERVE:
-                pass
+                # pass
             # Train the network
-            # self.trainQNetwork()
+            self.trainQNetwork()
         # print info
         if self.observe_count < OBSERVE:
             state = "observe"
             self.observe_count += 1
         elif self.observe_count == OBSERVE:
-            t = threading.Thread(target=self.trainAllTheTime, args=())
-            t.start()
+            # t = threading.Thread(target=self.trainAllTheTime, args=())
+            # t.start()
             state = "begin the threading"
             self.observe_count += 1
         elif self.session.run(self.timeStep) <= OBSERVE + EXPLORE:

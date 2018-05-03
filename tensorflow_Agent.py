@@ -327,7 +327,6 @@ class tensorflow_agent(object):
             if self.frame_per_action <= 0:
                 reward = self.makeReward(0)
                 state = self.getObservation()
-
                 self.brain.setPerception(state, self.action, reward)
 
                 self.setLastHp()
