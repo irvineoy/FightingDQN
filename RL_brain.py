@@ -177,9 +177,12 @@ class BrainDQN:
         self.memory_counter += 1
 
     def get_action(self, observation):
-        observation = observation[np.newaxis, :]
+        # observation = observation[np.newaxis, :]
+        state = self.state
+        state = np.append(state[:, :, 1:], observation, axis=2)
+        state = state[np.newaxis, :]
         if np.random.uniform() < self.epsilon:  # choosing action
-            action = self.sess.run(self.q_eval, feed_dict={self.s: observation})
+            action = self.sess.run(self.q_eval, feed_dict={self.s: state})
             # action = np.argmax(actions_value)
         else:
             action = np.zeros(self.n_actions)
