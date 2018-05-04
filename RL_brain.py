@@ -8,12 +8,15 @@ gym: 0.8.0
 
 import numpy as np
 import tensorflow as tf
+import random
 
 np.random.seed(1)
 tf.set_random_seed(1)
 FRAME_PER_ACTION = 5
 REWARD_MAX = 40.
 SAVE_AFTER_STEP = 10000
+WIDTH = 96
+HEIGHT = 64
 
 
 class BrainDQN:
@@ -43,11 +46,15 @@ class BrainDQN:
         self.batch_size = batch_size
         self.epsilon_increment = e_greedy_increment
         self.epsilon = 0 if e_greedy_increment is not None else self.epsilon_max
+        self.width = WIDTH
+        self.height = HEIGHT
+        self.state = None
 
         self.dueling = dueling      # decide to use dueling DQN or not
 
         self.learn_step_counter = 0
-        self.memory = np.zeros((self.memory_size, n_features*2+2))
+        self.n_features = self.width * self.height * 4
+        self.memory = np.zeros((self.memory_size, self.n_features*2+2))
         self._build_net()
         t_params = tf.get_collection('target_net_params')
         e_params = tf.get_collection('eval_net_params')
@@ -73,22 +80,25 @@ class BrainDQN:
     def _build_net(self):
         def build_layers(s, c_names, n_l1, w_initializer, b_initializer):
             with tf.variable_scope('conv1'):
-                w_conv1 = tf.get_variable('w_conv1', [8, 8, 4, 16], initializer=w_initializer, collections=c_names)
-                b_conv1 = tf.get_variable('b_conv1', [1, 16], initializer=w_initializer, collections=c_names)
+                w_conv1 = tf.get_variable('w_conv1', [8, 8, 4, 6], initializer=w_initializer, collections=c_names)
+                b_conv1 = tf.get_variable('b_conv1', [1, 6], initializer=w_initializer, collections=c_names)
                 conv1 = tf.nn.relu(tf.nn.conv2d(s, w_conv1, strides=[1, 2, 2, 1], padding='SAME') + b_conv1)
+                pool1 = tf.nn.max_pool(conv1, ksize=[1, 2, 2, 1], strides=[1, 2, 2, 1], padding="SAME")
             with tf.variable_scope('conv2'):
-                w_conv2 = tf.get_variable('w_conv2', [4, 4, 16, 32], initializer=w_initializer, collections=c_names)
-                b_conv2 = tf.get_variable('b_conv2', [1, 32], initializer=w_initializer, collections=c_names)
-                conv2 = tf.nn.relu(tf.nn.conv2d(conv1, w_conv2, strides=[1, 2, 2, 1], padding='SAME') + b_conv2)
-            with tf.variable_scope('conv3'):
-                w_conv3 = tf.get_variable('w_conv3', [3, 3, 32, 64], initializer=w_initializer, collections=c_names)
-                b_conv3 = tf.get_variable('b_conv3', [1, 64], initializer=w_initializer, collections=c_names)
-                conv3 = tf.nn.relu(tf.nn.conv2d(conv2, w_conv3, strides=[1, 2, 2, 1], padding='SAME') + b_conv3)
-                conv3 = tf.reshape(conv3, [-1, 1536])
+                w_conv2 = tf.get_variable('w_conv2', [8, 8, 6, 3], initializer=w_initializer, collections=c_names)
+                b_conv2 = tf.get_variable('b_conv2', [1, 3], initializer=w_initializer, collections=c_names)
+                conv2 = tf.nn.relu(tf.nn.conv2d(pool1, w_conv2, strides=[1, 1, 1, 1], padding='SAME') + b_conv2)
+                pool2 = tf.nn.max_pool(conv2, ksize=[1, 2, 2, 1], strides=[1, 2, 2, 1], padding="SAME")
+                conv2 = tf.reshape(pool2, (-1, 288))
+            # with tf.variable_scope('conv3'):
+            #     w_conv3 = tf.get_variable('w_conv3', [3, 3, 32, 64], initializer=w_initializer, collections=c_names)
+            #     b_conv3 = tf.get_variable('b_conv3', [1, 64], initializer=w_initializer, collections=c_names)
+            #     conv3 = tf.nn.relu(tf.nn.conv2d(conv2, w_conv3, strides=[1, 2, 2, 1], padding='SAME') + b_conv3)
+            #     conv3 = tf.reshape(conv3, [-1, 1536])
             with tf.variable_scope('l1'):
-                w1 = tf.get_variable('w1', [conv3, n_l1], initializer=w_initializer, collections=c_names)
+                w1 = tf.get_variable('w1', [288, n_l1], initializer=w_initializer, collections=c_names)
                 b1 = tf.get_variable('b1', [1, n_l1], initializer=b_initializer, collections=c_names)
-                l1 = tf.nn.relu(tf.matmul(s, w1) + b1)
+                l1 = tf.nn.relu(tf.matmul(conv2, w1) + b1)
 
             if self.dueling:
                 # Dueling DQN
@@ -113,7 +123,7 @@ class BrainDQN:
             return out
 
         # ------------------ build evaluate_net ------------------
-        self.s = tf.placeholder(tf.float32, [None, self.n_features], name='s')  # input
+        self.s = tf.placeholder(tf.float32, [None, self.width, self.height, 4], name='s')  # input
         self.q_target = tf.placeholder(tf.float32, [None, self.n_actions], name='Q_target')  # for calculating loss
         with tf.variable_scope('eval_net'):
             c_names, n_l1, w_initializer, b_initializer = \
@@ -128,17 +138,29 @@ class BrainDQN:
             self._train_op = tf.train.RMSPropOptimizer(self.lr).minimize(self.loss)
 
         # ------------------ build target_net ------------------
-        self.s_ = tf.placeholder(tf.float32, [None, self.n_features], name='s_')    # input
+        self.s_ = tf.placeholder(tf.float32, [None, self.width, self.height, 4], name='s_')    # input
         with tf.variable_scope('target_net'):
             c_names = ['target_net_params', tf.GraphKeys.GLOBAL_VARIABLES]
 
             self.q_next = build_layers(self.s_, c_names, n_l1, w_initializer, b_initializer)
 
-    def store_transition(self, s, a, r, s_):
+    def first_store(self, s):
+        s = s.reshape((self.width, self.height))
+        self.state = np.stack((s, s, s, s), axis=2)
+
+    def store_transition(self, a, r, s_):
+        current_state = self.state
+        self.state = np.append(self.state[:, :, 1:], s_, axis=2)
+
         r = r / REWARD_MAX
         if not hasattr(self, 'memory_counter'):
             self.memory_counter = 0
-        transition = np.hstack((s, [a, r], s_))
+
+        current_state = current_state.reshape((self.width * self.height * 4))
+        self.state = self.state.reshape((self.width * self.height * 4))
+
+        transition = np.hstack((current_state, [a, r], self.state))
+        self.state = self.state.reshape((self.width, self.height, 4))
         index = self.memory_counter % self.memory_size
         self.memory[index, :] = transition
         self.memory_counter += 1
@@ -146,10 +168,12 @@ class BrainDQN:
     def get_action(self, observation):
         observation = observation[np.newaxis, :]
         if np.random.uniform() < self.epsilon:  # choosing action
-            actions_value = self.sess.run(self.q_eval, feed_dict={self.s: observation})
-            action = np.argmax(actions_value)
+            action = self.sess.run(self.q_eval, feed_dict={self.s: observation})
+            # action = np.argmax(actions_value)
         else:
-            action = np.random.randint(0, self.n_actions)
+            action = np.zeros(self.n_actions)
+            action_indx = random.randrange(self.n_actions)
+            action[action_indx] = 1
         return action
 
     def learn(self):
@@ -159,9 +183,13 @@ class BrainDQN:
 
         sample_index = np.random.choice(self.memory_size, size=self.batch_size)
         batch_memory = self.memory[sample_index, :]
+        memory_state = batch_memory[:, :self.n_features]
+        memory_state_ = batch_memory[:, -self.n_features:]
+        memory_state = memory_state.reshape((self.batch_size, self.width, self.height, 4))
+        memory_state_ = memory_state_.reshape((self.batch_size, self.width, self.height, 4))
 
-        q_next = self.sess.run(self.q_next, feed_dict={self.s_: batch_memory[:, -self.n_features:]}) # next observation
-        q_eval = self.sess.run(self.q_eval, {self.s: batch_memory[:, :self.n_features]})
+        q_next = self.sess.run(self.q_next, feed_dict={self.s_: memory_state_})  # next observation
+        q_eval = self.sess.run(self.q_eval, {self.s: memory_state})
 
         q_target = q_eval.copy()
 
@@ -172,7 +200,7 @@ class BrainDQN:
         q_target[batch_index, eval_act_index] = reward + self.gamma * np.max(q_next, axis=1)
 
         _, self.cost = self.sess.run([self._train_op, self.loss],
-                                     feed_dict={self.s: batch_memory[:, :self.n_features],
+                                     feed_dict={self.s: memory_state,
                                                 self.q_target: q_target})
         self.cost_his.append(self.cost)
 

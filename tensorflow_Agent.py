@@ -1,6 +1,6 @@
 from py4j.java_gateway import get_field
 # from RL_brain import BrainDQN
-from tensorflow_DDQN import BrainDQN
+from RL_brain import BrainDQN
 from TrainModule import ActionMap
 import numpy as np
 import os
@@ -13,7 +13,7 @@ actions = 40
 class tensorflow_agent(object):
     def __init__(self, gateway):
         self.gateway = gateway
-        self.brain = BrainDQN(actions)
+        self.brain = BrainDQN(actions, 141)
         self.actionMap = ActionMap()
         self.R = 0  # total reward in a round
         self.action = 0
@@ -36,6 +36,7 @@ class tensorflow_agent(object):
         self.frame_per_action = self.brain.frame_per_action
         self.screenData = None
         self.win = None
+        self.state = None
         self.width = self.brain.width
         self.height = self.brain.height
 
@@ -122,8 +123,9 @@ class tensorflow_agent(object):
         return self.inputKey
 
     def playAction(self):
-        self.action = self.brain.getAction()
-        action_name = self.actionMap.actionMap[np.argmax(self.action)]
+        state = self.getObservation()
+        self.action = np.argmax(self.brain.get_action(state))
+        action_name = self.actionMap.actionMap[self.action]
         print("current action is: ", action_name)
         self.cc.commandCall(action_name)
 
@@ -188,27 +190,29 @@ class tensorflow_agent(object):
             # Just spam kick
             # self.cc.commandCall("B")
             if self.currentFrameNum == 14:
-                state = self.getObservation()
-                self.brain.setInitState(state)
+                self.state = self.getObservation()
+                self.brain.first_store(self.state)
                 self.setLastHp()
                 self.playAction()
 
             elif self.currentFrameNum > 3550 and self.isFinishd == 0:
                 reward = self.makeReward(1)
-                state = self.getObservation()
-                self.brain.setPerception(state, self.action, reward, True)
+                state_ = self.getObservation()
+                self.brain.store_transition(self.action, reward, state_)
 
                 self.playAction()
                 self.isFinishd = 1
 
             elif self.ableAction():
+                self.brain.learn()
                 if self.frame_per_action <= 0:
                     reward = self.makeReward(0)
-                    state = self.getObservation()
-                    self.brain.setPerception(state, self.action, reward, False)
+                    state_ = self.getObservation()
+                    self.brain.store_transition(self.action, reward, state_)
 
                     self.setLastHp()
                     self.playAction()
+                    self.frame_per_action = self.brain.frame_per_action
                     print("\n")
 
             self.countProcess += 1
