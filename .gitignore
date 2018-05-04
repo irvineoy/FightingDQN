@@ -7,3 +7,5 @@ saved_networks_3Layers_roundmax3/
 
 __pycache__/
 py4j/__pycache__/
+
+logs/

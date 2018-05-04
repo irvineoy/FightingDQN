@@ -14,10 +14,15 @@ def check_args(args):
 
 def start_game():
     manager.registerAI("tensorflow_agent", tensorflow_agent(gateway))
+    manager.registerJavaAIForTrainNum(3)  # AIの数
+
+    manager.registerJavaAIForTrain("MctsAi", 0.5)
+    manager.registerJavaAIForTrain("Machete", 0.4)
+    manager.registerJavaAIForTrain("GigaThunder", 0.1)
     print("Start game")
 
     # game = manager.createGame("ZEN", "ZEN", "tensorflow_agent", "MctsAi_ver4_nonDelay", GAME_NUM)
-    game = manager.createGame("ZEN", "ZEN", "tensorflow_agent", "Machete", GAME_NUM)
+    game = manager.createGameForTrain("ZEN", "ZEN", "tensorflow_agent", GAME_NUM)
     manager.runGame(game)
 
     print("After game")

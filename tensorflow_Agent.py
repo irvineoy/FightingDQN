@@ -1,5 +1,6 @@
 from py4j.java_gateway import get_field
-from tensorflow_DDQN import BrainDQN
+# from tensorflow_DDQN import BrainDQN
+from duel_brain import BrainDQN
 from TrainModule import ActionMap
 import numpy as np
 import os
@@ -13,7 +14,7 @@ actions = 40
 class tensorflow_agent(object):
     def __init__(self, gateway):
         self.gateway = gateway
-        self.brain = BrainDQN(actions)
+        self.brain = BrainDQN(actions, 141)
         self.actionMap = ActionMap()
         self.R = 0  # total reward in a round
         self.action = 0
@@ -35,6 +36,7 @@ class tensorflow_agent(object):
         self.isFinishd = None
         self.reward = None
         self.frame_per_action = self.brain.frame_per_action
+        self.state = None
 
     def close(self):
         pass
@@ -67,6 +69,7 @@ class tensorflow_agent(object):
         print(x)
         print(y)
         print(z)
+
 
     def makeResultFile(self):
         if not os.path.exists("./saved_networks/"):
@@ -109,8 +112,8 @@ class tensorflow_agent(object):
         return self.inputKey
 
     def playAction(self, state):
-        self.action = self.brain.getAction(state)
-        action_name = self.actionMap.actionMap[np.argmax(self.action)]
+        self.action = self.brain.get_action(state)
+        action_name = self.actionMap.actionMap[self.action]
         print("current action is: ", action_name)
         self.cc.commandCall(action_name)
 
@@ -247,15 +250,16 @@ class tensorflow_agent(object):
 
         # print(len(observation))  #141
         # type(observation) -> list
-        return list(map(lambda x: float(x), observation))
+        # return list(map(lambda x: float(x), observation))
+        return np.array(observation, dtype=np.float64)
 
     def makeReward(self, finishRound):
         if finishRound == 0:
-            # Defence reward = SubPoint - (currentMyHp - lastMyHp )
             # Attack reward = currentOppHp - lastOppHp
-            self.reward = []  # 0:defence 1:attack
-            self.reward.append(self.SubPoint - (abs(self.nonDelay.getCharacter(self.player).getHp()) - self.lastHp_my))
+            # Defence reward = SubPoint - (currentMyHp - lastMyHp )
+            self.reward = []
             self.reward.append(abs(self.nonDelay.getCharacter(not self.player).getHp()) - self.lastHp_opp)
+            self.reward.append(self.SubPoint - (abs(self.nonDelay.getCharacter(self.player).getHp()) - self.lastHp_my))
 
             self.R = self.R + self.reward[0] + self.reward[1]
             print("The reward is: ", self.reward)
@@ -264,12 +268,21 @@ class tensorflow_agent(object):
         else:
             if abs(self.nonDelay.getCharacter(self.player).getHp()) < abs(
                     self.nonDelay.getCharacter(not self.player).getHp()):
-                self.R += self.MaxPoint
+                self.reward = []
+                self.reward.append(abs(self.nonDelay.getCharacter(not self.player).getHp()) - self.lastHp_opp)
+                self.reward.append(
+                    self.SubPoint - (abs(self.nonDelay.getCharacter(self.player).getHp()) - self.lastHp_my))
+                self.R += self.reward[0] + self.reward[1]
                 self.win = 1
-                return [self.MaxPoint, self.MaxPoint]
+                return self.reward
             else:
+                self.reward = []
+                self.reward.append(abs(self.nonDelay.getCharacter(not self.player).getHp()) - self.lastHp_opp)
+                self.reward.append(
+                    self.SubPoint - (abs(self.nonDelay.getCharacter(self.player).getHp()) - self.lastHp_my))
+                self.R += self.reward[0] + self.reward[1]
                 self.win = 0
-                return [0, 0]
+                return self.reward
 
     def setLastHp(self):
         self.lastHp_opp = abs(self.nonDelay.getCharacter(not self.player).getHp())
@@ -310,37 +323,35 @@ class tensorflow_agent(object):
         # Just spam kick
         # self.cc.commandCall("B")
         if self.currentFrameNum == 14:
-            state = self.getObservation()
-            self.brain.setInitState(tuple(state))
+            state_ = self.getObservation()
             self.setLastHp()
-            self.playAction(state)
+            print(1)
+            self.playAction(state_)
+            print(1)
+            self.state = state_
 
         elif self.currentFrameNum > 3550 and self.isFinishd == 0:
             reward = self.makeReward(1)
-            state = self.getObservation()
-            self.brain.setPerception(state, self.action, reward)
+            state_ = self.getObservation()
+            self.brain.store_transition(self.state, self.action, reward, state_)
 
-            self.playAction(state)
+            self.playAction(state_)
             self.isFinishd = 1
+            self.brain.learn()
 
         elif self.ableAction():
+            self.brain.learn()
             if self.frame_per_action <= 0:
                 reward = self.makeReward(0)
-                state = self.getObservation()
-                self.brain.setPerception(state, self.action, reward)
+                state_ = self.getObservation()
+                self.brain.store_transition(self.state, self.action, reward, state_)
 
                 self.setLastHp()
-                self.playAction(state)
+                self.playAction(state_)
+                self.state = state_
                 self.frame_per_action = self.brain.frame_per_action
                 print("\n")
 
-        # print("The countProcess: ", self.countProcess)
-        # self.countProcess += 1
-
-        # nextObservation = self.getObservation()
-        # reward = self.makeReward(self.isGameJustStarted)
-        # print(reward)
-        # self.brain.setPerception(nextObservation, self.action, reward, self.isGameJustStarted)
 
     # This part is mandatory
     class Java:
