@@ -175,8 +175,7 @@ class BrainDQN:
         self.memory[index, :] = transition
         self.memory_counter += 1
 
-    def get_action(self, observation):
-        # observation = observation[np.newaxis, :]
+    def get_action(self):
         state = self.state
         state = state[np.newaxis, :]
         if np.random.uniform() < self.epsilon:  # choosing action
