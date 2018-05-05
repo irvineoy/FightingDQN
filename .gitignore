@@ -2,6 +2,7 @@
 .idea/
 logs/
 saved_networks/
+saved_networks*
 saved_networks1.1/
 saved_networks_3Layers_roundmax3/
 

@@ -24,7 +24,7 @@ class BrainDQN:
             self,
             n_actions,
             learning_rate=0.001,
-            reward_decay=0.9,
+            reward_decay=0.99,
             e_greedy=0.9,
             replace_target_iter=300,
             memory_size=50000,
@@ -48,11 +48,11 @@ class BrainDQN:
         self.height = HEIGHT
         self.state = None
 
-        self.dueling = dueling      # decide to use dueling DQN or not
+        self.dueling = dueling  # decide to use dueling DQN or not
 
         self.learn_step_counter = 0
         self.n_features = self.width * self.height * 4
-        self.memory = np.zeros((self.memory_size, self.n_features*2+3))
+        self.memory = np.zeros((self.memory_size, self.n_features * 2 + 3))
         self._build_net()
         t_params = tf.get_collection('target_net_params')
         e_params = tf.get_collection('eval_net_params')
@@ -111,7 +111,7 @@ class BrainDQN:
                     self.A = tf.matmul(l1, w2) + b2
 
                 with tf.variable_scope('Q'):
-                    out = self.V + (self.A - tf.reduce_mean(self.A, axis=1, keep_dims=True))     # Q = V(s) + A(s,a)
+                    out = self.V + (self.A - tf.reduce_mean(self.A, axis=1, keep_dims=True))  # Q = V(s) + A(s,a)
             else:
                 w2_a = tf.get_variable('w2_a', [n_l1, self.n_actions], initializer=w_initializer,
                                        collections=c_names)
@@ -135,7 +135,8 @@ class BrainDQN:
                 ['eval_net_params', tf.GraphKeys.GLOBAL_VARIABLES], 80, \
                 tf.random_normal_initializer(0., 0.3), tf.constant_initializer(0.1)  # config of layers
 
-            self.q_eval ,self.q_eval_a, self.q_eval_d = build_layers(self.s, c_names, n_l1, w_initializer, b_initializer)
+            self.q_eval, self.q_eval_a, self.q_eval_d = build_layers(self.s, c_names, n_l1, w_initializer,
+                                                                     b_initializer)
 
         with tf.variable_scope('loss'):
             self.loss_a = tf.squared_difference(self.q_input_a, self.q_eval_a)
@@ -148,10 +149,11 @@ class BrainDQN:
             self._train_op = tf.train.RMSPropOptimizer(self.lr).minimize(self.loss)
 
         # ------------------ build target_net ------------------
-        self.s_ = tf.placeholder(tf.float32, [None, self.width, self.height, 4], name='s_')    # input
+        self.s_ = tf.placeholder(tf.float32, [None, self.width, self.height, 4], name='s_')  # input
         with tf.variable_scope('target_net'):
             c_names = ['target_net_params', tf.GraphKeys.GLOBAL_VARIABLES]
-            self.q_evalT, self.q_evalT_a, self.q_evalT_d = build_layers(self.s_, c_names, n_l1, w_initializer, b_initializer)
+            self.q_evalT, self.q_evalT_a, self.q_evalT_d = build_layers(self.s_, c_names, n_l1, w_initializer,
+                                                                        b_initializer)
         self.merged = tf.summary.merge_all()
 
     def first_store(self, s):
@@ -167,11 +169,8 @@ class BrainDQN:
         if not hasattr(self, 'memory_counter'):
             self.memory_counter = 0
 
-        current_state = current_state.reshape((self.width * self.height * 4))
-        self.state = self.state.reshape((self.width * self.height * 4))
-
-        transition = np.hstack((current_state, [a, r_a, r_d], self.state))
-        self.state = self.state.reshape((self.width, self.height, 4))
+        transition = np.hstack(
+            (current_state.reshape(self.n_features), [a, r_a, r_d], self.state.reshape(self.n_features)))
         index = self.memory_counter % self.memory_size
         self.memory[index, :] = transition
         self.memory_counter += 1
@@ -179,7 +178,6 @@ class BrainDQN:
     def get_action(self, observation):
         # observation = observation[np.newaxis, :]
         state = self.state
-        state = np.append(state[:, :, 1:], observation, axis=2)
         state = state[np.newaxis, :]
         if np.random.uniform() < self.epsilon:  # choosing action
             action = self.sess.run(self.q_eval, feed_dict={self.s: state})
@@ -231,8 +229,3 @@ class BrainDQN:
         print("Step: ", self.learn_step_counter)
         print("Epsilon: ", round(self.epsilon, 6))
         print("Cost: ", self.cost)
-
-
-
-
-

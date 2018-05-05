@@ -124,8 +124,7 @@ class tensorflow_agent(object):
         return self.inputKey
 
     def playAction(self):
-        state = self.getObservation()
-        self.action = np.argmax(self.brain.get_action(state))
+        self.action = np.argmax(self.brain.get_action())
         action_name = self.actionMap.actionMap[self.action]
         print("current action is: ", action_name)
         self.cc.commandCall(action_name)
