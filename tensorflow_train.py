@@ -16,7 +16,7 @@ def start_game():
     manager.registerAI("tensorflow_agent", tensorflow_agent(gateway))
     print("Start game")
 
-    game = manager.createGame("ZEN", "ZEN", "tensorflow_agent", "Machete_ver4_nonDelay", GAME_NUM)
+    game = manager.createGame("ZEN", "ZEN", "tensorflow_agent", "Machete", GAME_NUM)
     manager.runGame(game)
 
     print("After game")
