@@ -142,12 +142,19 @@ class tensorflow_agent(object):
         else:
             if abs(self.nonDelay.getCharacter(self.player).getHp()) < abs(
                     self.nonDelay.getCharacter(not self.player).getHp()):
-                self.R += self.MaxPoint
+                self.reward = (self.SubPoint - (abs(self.nonDelay.getCharacter(self.player).getHp()) - self.lastHp_my))
+                self.reward += 1 * (abs(self.nonDelay.getCharacter(not self.player).getHp()) - self.lastHp_opp)
+
+                self.R += self.reward
                 self.win = 1
-                return self.MaxPoint
+                return self.reward
             else:
+                self.reward = (self.SubPoint - (abs(self.nonDelay.getCharacter(self.player).getHp()) - self.lastHp_my))
+                self.reward += 1 * (abs(self.nonDelay.getCharacter(not self.player).getHp()) - self.lastHp_opp)
+
+                self.R += self.reward
                 self.win = 0
-                return 0
+                return self.reward
 
     def setLastHp(self):
         self.lastHp_opp = abs(self.nonDelay.getCharacter(not self.player).getHp())

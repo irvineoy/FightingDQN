@@ -5,6 +5,9 @@ Using:
 Tensorflow: 1.0
 gym: 0.8.0
 """
+import os
+import shutil
+import time
 
 import numpy as np
 import tensorflow as tf
@@ -24,7 +27,7 @@ class BrainDQN:
             self,
             n_actions,
             n_features,
-            learning_rate=0.001,
+            learning_rate=1e-6,
             reward_decay=0.9,
             e_greedy=0.9,
             replace_target_iter=300,
@@ -48,7 +51,9 @@ class BrainDQN:
         self.epsilon = 0 if e_greedy_increment is not None else self.epsilon_max
         self.width = WIDTH
         self.height = HEIGHT
+        self.memory_counter = 0
         self.state = None
+        self.memory_full = False
 
         self.dueling = dueling      # decide to use dueling DQN or not
 
@@ -66,6 +71,11 @@ class BrainDQN:
         else:
             self.sess = sess
         if output_graph:
+            try:
+                shutil.rmtree("logs")
+            except Exception as e:
+                print(e)
+            time.sleep(0.1)
             self.summary_writer = tf.summary.FileWriter("logs/", self.sess.graph)
         self.cost_his = []
 
@@ -85,20 +95,20 @@ class BrainDQN:
                 conv1 = tf.nn.relu(tf.nn.conv2d(s, w_conv1, strides=[1, 2, 2, 1], padding='SAME') + b_conv1)
                 pool1 = tf.nn.max_pool(conv1, ksize=[1, 2, 2, 1], strides=[1, 2, 2, 1], padding="SAME")
             with tf.variable_scope('conv2'):
-                w_conv2 = tf.get_variable('w_conv2', [8, 8, 16, 8], initializer=w_initializer, collections=c_names)
-                b_conv2 = tf.get_variable('b_conv2', [1, 8], initializer=w_initializer, collections=c_names)
+                w_conv2 = tf.get_variable('w_conv2', [4, 4, 16, 32], initializer=w_initializer, collections=c_names)
+                b_conv2 = tf.get_variable('b_conv2', [1, 32], initializer=w_initializer, collections=c_names)
                 conv2 = tf.nn.relu(tf.nn.conv2d(pool1, w_conv2, strides=[1, 1, 1, 1], padding='SAME') + b_conv2)
                 pool2 = tf.nn.max_pool(conv2, ksize=[1, 2, 2, 1], strides=[1, 2, 2, 1], padding="SAME")
-                conv2 = tf.reshape(pool2, (-1, 768))
-            # with tf.variable_scope('conv3'):
-            #     w_conv3 = tf.get_variable('w_conv3', [3, 3, 32, 64], initializer=w_initializer, collections=c_names)
-            #     b_conv3 = tf.get_variable('b_conv3', [1, 64], initializer=w_initializer, collections=c_names)
-            #     conv3 = tf.nn.relu(tf.nn.conv2d(conv2, w_conv3, strides=[1, 2, 2, 1], padding='SAME') + b_conv3)
-            #     conv3 = tf.reshape(conv3, [-1, 1536])
+            with tf.variable_scope('conv3'):
+                w_conv3 = tf.get_variable('w_conv3', [3, 3, 32, 64], initializer=w_initializer, collections=c_names)
+                b_conv3 = tf.get_variable('b_conv3', [1, 64], initializer=w_initializer, collections=c_names)
+                conv3 = tf.nn.relu(tf.nn.conv2d(pool2, w_conv3, strides=[1, 2, 2, 1], padding='SAME') + b_conv3)
+                pool3 = tf.nn.max_pool(conv3, ksize=[1, 2, 2, 1], strides=[1, 2, 2, 1], padding="SAME")
+                pool3 = tf.reshape(pool3, [-1, 384])
             with tf.variable_scope('l1'):
-                w1 = tf.get_variable('w1', [768, n_l1], initializer=w_initializer, collections=c_names)
+                w1 = tf.get_variable('w1', [384, n_l1], initializer=w_initializer, collections=c_names)
                 b1 = tf.get_variable('b1', [1, n_l1], initializer=b_initializer, collections=c_names)
-                l1 = tf.nn.relu(tf.matmul(conv2, w1) + b1)
+                l1 = tf.nn.relu(tf.matmul(pool3, w1) + b1)
 
             if self.dueling:
                 # Dueling DQN
@@ -127,8 +137,8 @@ class BrainDQN:
         self.q_target = tf.placeholder(tf.float32, [None, self.n_actions], name='Q_target')  # for calculating loss
         with tf.variable_scope('eval_net'):
             c_names, n_l1, w_initializer, b_initializer = \
-                ['eval_net_params', tf.GraphKeys.GLOBAL_VARIABLES], 80, \
-                tf.random_normal_initializer(0., 0.3), tf.constant_initializer(0.1)  # config of layers
+                ['eval_net_params', tf.GraphKeys.GLOBAL_VARIABLES], 128, \
+                tf.random_normal_initializer(0., 0.01), tf.constant_initializer(0.1)  # config of layers
 
             self.q_eval = build_layers(self.s, c_names, n_l1, w_initializer, b_initializer)
 
@@ -150,26 +160,25 @@ class BrainDQN:
         self.state = np.stack((s, s, s, s), axis=2)
 
     def store_transition(self, a, r, s_):
-        current_state = self.state
+        current_state = self.state.reshape(self.n_features)
         self.state = np.append(self.state[:, :, 1:], s_, axis=2)
 
         r = r / REWARD_MAX
         if not hasattr(self, 'memory_counter'):
             self.memory_counter = 0
 
-        current_state = current_state.reshape((self.width * self.height * 4))
-        self.state = self.state.reshape((self.width * self.height * 4))
+        transition = np.hstack((current_state, [a, r], self.state.reshape(self.n_features)))
 
-        transition = np.hstack((current_state, [a, r], self.state))
-        self.state = self.state.reshape((self.width, self.height, 4))
+        if not self.memory_full:
+            if self.memory_counter > self.memory_size:
+                self.memory_full = True
+
         index = self.memory_counter % self.memory_size
         self.memory[index, :] = transition
         self.memory_counter += 1
 
     def get_action(self):
-        # observation = observation[np.newaxis, :]
-        state = self.state
-        state = state[np.newaxis, :]
+        state = self.state[np.newaxis, :]
         if np.random.uniform() < self.epsilon:  # choosing action
             action = self.sess.run(self.q_eval, feed_dict={self.s: state})
             # action = np.argmax(actions_value)
@@ -184,7 +193,14 @@ class BrainDQN:
             self.sess.run(self.replace_target_op)
             print('\ntarget_params_replaced\n')
 
-        sample_index = np.random.choice(self.memory_size, size=self.batch_size)
+        if self.memory_full:
+            sample_index = np.random.choice(self.memory_size, size=self.batch_size)
+        elif self.memory_counter > self.batch_size:
+            sample_index = np.random.choice(self.memory_counter, size=self.batch_size)
+        else:
+            self.learn_step_counter += 1
+            return
+
         batch_memory = self.memory[sample_index, :]
         memory_state = batch_memory[:, :self.n_features]
         memory_state_ = batch_memory[:, -self.n_features:]
@@ -203,8 +219,8 @@ class BrainDQN:
         q_target[batch_index, eval_act_index] = reward + self.gamma * np.max(q_next, axis=1)
 
         _, self.cost, merged = self.sess.run([self._train_op, self.loss, self.merged],
-                                     feed_dict={self.s: memory_state,
-                                                self.q_target: q_target})
+                                             feed_dict={self.s: memory_state,
+                                                        self.q_target: q_target})
         self.summary_writer.add_summary(merged, self.learn_step_counter)
 
         self.epsilon = self.epsilon + self.epsilon_increment if self.epsilon < self.epsilon_max else self.epsilon_max
