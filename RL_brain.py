@@ -6,7 +6,7 @@ Tensorflow: 1.0
 gym: 0.8.0
 """
 import shutil
-from datetime import time
+import time
 
 import numpy as np
 import tensorflow as tf
@@ -106,7 +106,7 @@ class BrainDQN:
                 w1 = tf.get_variable('w1', [384, n_l1], initializer=w_initializer, collections=c_names)
                 b1 = tf.get_variable('b1', [1, n_l1], initializer=b_initializer, collections=c_names)
                 l1 = tf.nn.relu(tf.matmul(pool3, w1) + b1)
-            with tf.variable_scope('l1'):
+            with tf.variable_scope('l2'):
                 w2 = tf.get_variable('w2', [n_l1, n_l1], initializer=w_initializer, collections=c_names)
                 b2 = tf.get_variable('b2', [1, n_l1], initializer=b_initializer, collections=c_names)
                 l2 = tf.nn.relu(tf.matmul(l1, w2) + b2)
