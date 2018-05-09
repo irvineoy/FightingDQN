@@ -48,6 +48,17 @@ class tensorflow_agent(object):
         self.nonDelay = nonDelay
         self.currentFrameNum = nonDelay.getFramesNumber()  # first frame is 14
 
+    # def getInformation(self, frameData):
+    #     # Getting the frame data of the current frame
+    #     self.frameData = frameData
+    #     self.cc.setFrameData(self.frameData, self.player)
+    #     if not self.frameData.getEmptyFlag():
+    #         self.nonDelay = self.simulator.simulate(self.frameData,self.player,14)
+    #     else:
+    #         self.nonDelay = self.frameData
+    #     #self.nonDelay = self.frameData
+    #     self.currentFrameNum = self.nonDelay.getFramesNumber()  # first frame is 14
+
     # please define this method when you use FightingICE version 3.20 or later
     def roundEnd(self, x, y, z):
         score = (self.nonDelay.getCharacter(not self.player).getHp()/(self.nonDelay.getCharacter(not self.player).getHp() + self.nonDelay.getCharacter(self.player).getHp())) * 1000

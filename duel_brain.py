@@ -30,7 +30,7 @@ class BrainDQN:
             replace_target_iter=300,
             memory_size=50000,
             batch_size=32,
-            e_greedy_increment=0.0001,
+            e_greedy_increment=0.00005,
             output_graph=True,
             dueling=False,
             sess=None,
@@ -46,7 +46,7 @@ class BrainDQN:
         self.batch_size = batch_size
         self.epsilon_increment = e_greedy_increment
         self.epsilon = 0 if e_greedy_increment is not None else self.epsilon_max
-
+        self.memory_full = False
         self.dueling = dueling  # decide to use dueling DQN or not
 
         self.learn_step_counter = 0
@@ -92,12 +92,24 @@ class BrainDQN:
                     self.V = tf.matmul(l2, w2) + b2
 
                 with tf.variable_scope('Advantage'):
-                    w2 = tf.get_variable('w2', [n_l1, self.n_actions], initializer=w_initializer, collections=c_names)
-                    b2 = tf.get_variable('b2', [1, self.n_actions], initializer=b_initializer, collections=c_names)
-                    self.A = tf.matmul(l1, w2) + b2
+                    # w2 = tf.get_variable('w2', [n_l1, self.n_actions], initializer=w_initializer, collections=c_names)
+                    # b2 = tf.get_variable('b2', [1, self.n_actions], initializer=b_initializer, collections=c_names)
+                    # self.A = tf.matmul(l1, w2) + b2
+                    w2_a = tf.get_variable('w2_a', [n_l1, self.n_actions], initializer=w_initializer,
+                                           collections=c_names)
+                    b2_a = tf.get_variable('b2_a', [1, self.n_actions], initializer=b_initializer, collections=c_names)
+                    out_a = tf.matmul(l2, w2_a) + b2_a
+
+                    w2_d = tf.get_variable('w2_d', [n_l1, self.n_actions], initializer=w_initializer,
+                                           collections=c_names)
+                    b2_d = tf.get_variable('b2_d', [1, self.n_actions], initializer=b_initializer, collections=c_names)
+                    out_d = tf.matmul(l1, w2_d) + b2_d
 
                 with tf.variable_scope('Q'):
-                    out = self.V + (self.A - tf.reduce_mean(self.A, axis=1, keep_dims=True))  # Q = V(s) + A(s,a)
+                    out_a = self.V + (out_a - tf.reduce_mean(out_a, axis=1, keep_dims=True))  # Q = V(s) + A(s,a)
+                    out_d = self.V + (out_d - tf.reduce_mean(out_d, axis=1, keep_dims=True))  # Q = V(s) + A(s,a)
+                    out = out_a + out_d
+
             else:
                 with tf.variable_scope('Q'):
                     w2_a = tf.get_variable('w2_a', [n_l1, self.n_actions], initializer=w_initializer,
@@ -151,6 +163,11 @@ class BrainDQN:
         if not hasattr(self, 'memory_counter'):
             self.memory_counter = 0
         transition = np.hstack((s, [a, r_a, r_d], s_))
+
+        if not self.memory_full:
+            if self.memory_counter > self.memory_size:
+                self.memory_full = True
+
         index = self.memory_counter % self.memory_size
         self.memory[index, :] = transition
         self.memory_counter += 1
@@ -170,6 +187,14 @@ class BrainDQN:
             if self.learn_step_counter % self.replace_target_iter == 0:
                 self.sess.run(self.replace_target_op)
                 print('\ntarget_params_replaced\n')
+
+            if self.memory_full:
+                sample_index = np.random.choice(self.memory_size, size=self.batch_size)
+            elif self.memory_counter > self.batch_size:
+                sample_index = np.random.choice(self.memory_counter, size=self.batch_size)
+            else:
+                self.learn_step_counter += 1
+                return
 
             sample_index = np.random.choice(self.memory_size, size=self.batch_size)
             batch_memory = self.memory[sample_index, :]
