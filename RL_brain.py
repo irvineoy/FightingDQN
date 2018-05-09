@@ -25,13 +25,13 @@ class BrainDQN:
     def __init__(
             self,
             n_actions,
-            learning_rate=0.001,
+            learning_rate=1e-6,
             reward_decay=0.99,
             e_greedy=0.9,
             replace_target_iter=300,
             memory_size=50000,
             batch_size=32,
-            e_greedy_increment=0.0001,
+            e_greedy_increment=0.00002,
             output_graph=True,
             dueling=False,
             sess=None,
@@ -63,7 +63,8 @@ class BrainDQN:
         self.replace_target_op = [tf.assign(t, e) for t, e in zip(t_params, e_params)]
 
         if sess is None:
-            self.sess = tf.Session()
+            gpu_options = tf.GPUOptions(per_process_gpu_memory_fraction=0.33)
+            self.sess = tf.Session(config=tf.ConfigProto(gpu_options))
             self.sess.run(tf.global_variables_initializer())
         else:
             self.sess = sess
@@ -145,7 +146,7 @@ class BrainDQN:
         self.q_input_d = tf.placeholder(tf.float32, [None, self.n_actions], name='Q_input_d')  # for calculating loss
         with tf.variable_scope('eval_net'):
             c_names, n_l1, w_initializer, b_initializer = \
-                ['eval_net_params', tf.GraphKeys.GLOBAL_VARIABLES], 128, \
+                ['eval_net_params', tf.GraphKeys.GLOBAL_VARIABLES], 80, \
                 tf.random_normal_initializer(0., 0.01), tf.constant_initializer(0.1)  # config of layers
 
             self.q_eval, self.q_eval_a, self.q_eval_d = build_layers(self.s, c_names, n_l1, w_initializer,
