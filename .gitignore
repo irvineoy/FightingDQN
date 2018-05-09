@@ -1,5 +1,6 @@
 *.pyc
 .idea/
+logs/
 
 saved_networks/
 saved_networks1.1/
