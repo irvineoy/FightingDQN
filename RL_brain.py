@@ -15,7 +15,7 @@ np.random.seed(1)
 tf.set_random_seed(1)
 FRAME_PER_ACTION = 5
 REWARD_MAX = 40.
-SAVE_AFTER_STEP = 10000
+SAVE_AFTER_STEP = 3000
 NEURALSIZE = 80
 
 
@@ -25,12 +25,12 @@ class DuelingDQN:
             n_actions,
             n_features,
             learning_rate=0.001,
-            reward_decay=0.1,
+            reward_decay=0.9,
             e_greedy=0.9,
             replace_target_iter=300,
             memory_size=50000,
             batch_size=32,
-            e_greedy_increment=0.001,
+            e_greedy_increment=0.0001,
             output_graph=True,
             dueling=False,
             sess=None,
@@ -45,8 +45,9 @@ class DuelingDQN:
         self.memory_size = memory_size
         self.batch_size = batch_size
         self.epsilon_increment = e_greedy_increment
-        self.epsilon = 0 if e_greedy_increment is not None else self.epsilon_max
-
+        self.epsilon = 0.9 if e_greedy_increment is not None else self.epsilon_max
+        self.memory_full = False
+        self.memory_counter = 0
         self.dueling = dueling      # decide to use dueling DQN or not
 
         self.learn_step_counter = 0
@@ -65,7 +66,7 @@ class DuelingDQN:
             tf.summary.FileWriter("logs/", self.sess.graph)
         self.cost_his = []
 
-        self.saver = tf.train.Saver(max_to_keep=1)
+        self.saver = tf.train.Saver(max_to_keep=1000)
         checkpoint = tf.train.get_checkpoint_state("saved_networks")
         if checkpoint and checkpoint.model_checkpoint_path:
             self.saver.restore(self.sess, checkpoint.model_checkpoint_path)
@@ -79,7 +80,10 @@ class DuelingDQN:
                 w1 = tf.get_variable('w1', [self.n_features, n_l1], initializer=w_initializer, collections=c_names)
                 b1 = tf.get_variable('b1', [1, n_l1], initializer=b_initializer, collections=c_names)
                 l1 = tf.nn.relu(tf.matmul(s, w1) + b1)
-
+            with tf.variable_scope('l2'):
+                w2 = tf.get_variable('w2', [n_l1, n_l1], initializer=w_initializer, collections=c_names)
+                b2 = tf.get_variable('b2', [1, n_l1], initializer=b_initializer, collections=c_names)
+                l2 = tf.nn.relu(tf.matmul(l1, w2) + b2)
             if self.dueling:
                 # Dueling DQN
                 with tf.variable_scope('Value'):
@@ -96,9 +100,9 @@ class DuelingDQN:
                     out = self.V + (self.A - tf.reduce_mean(self.A, axis=1, keep_dims=True))     # Q = V(s) + A(s,a)
             else:
                 with tf.variable_scope('Q'):
-                    w2 = tf.get_variable('w2', [n_l1, self.n_actions], initializer=w_initializer, collections=c_names)
-                    b2 = tf.get_variable('b2', [1, self.n_actions], initializer=b_initializer, collections=c_names)
-                    out = tf.matmul(l1, w2) + b2
+                    w3 = tf.get_variable('w2', [n_l1, self.n_actions], initializer=w_initializer, collections=c_names)
+                    b3 = tf.get_variable('b2', [1, self.n_actions], initializer=b_initializer, collections=c_names)
+                    out = tf.matmul(l2, w3) + b3
 
             return out
 
@@ -129,6 +133,11 @@ class DuelingDQN:
         if not hasattr(self, 'memory_counter'):
             self.memory_counter = 0
         transition = np.hstack((s, [a, r], s_))
+
+        if not self.memory_full:
+            if self.memory_counter > self.memory_size:
+                self.memory_full = True
+
         index = self.memory_counter % self.memory_size
         self.memory[index, :] = transition
         self.memory_counter += 1
@@ -147,7 +156,15 @@ class DuelingDQN:
             self.sess.run(self.replace_target_op)
             print('\ntarget_params_replaced\n')
 
-        sample_index = np.random.choice(self.memory_size, size=self.batch_size)
+        if self.memory_full:
+            sample_index = np.random.choice(self.memory_size, size=self.batch_size)
+        elif self.memory_counter > 1000:
+            sample_index = np.random.choice(self.memory_counter, size=self.batch_size)
+        else:
+            self.learn_step_counter += 1
+            return
+
+        # sample_index = np.random.choice(self.memory_size, size=self.batch_size)
         batch_memory = self.memory[sample_index, :]
 
         q_next = self.sess.run(self.q_next, feed_dict={self.s_: batch_memory[:, -self.n_features:]}) # next observation

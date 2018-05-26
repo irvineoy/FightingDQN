@@ -284,55 +284,58 @@ class tensorflow_agent(object):
             return False
 
     def processing(self):
-        self.frame_per_action -= 1
-        if self.frameData.getEmptyFlag() or self.frameData.getRemainingFramesNumber() <= 0:
-            self.isGameJustStarted = True
-            return
-        if not self.isGameJustStarted:
-            self.frameData = self.simulator.simulate(self.frameData, self.player, None, None, 17)
-        else:
-            # this else is used only 1 time in first of round
-            self.isGameJustStarted = False
-            self.currentRoundNum = self.frameData.getRound()
-            self.R = 0
-            self.isFinishd = 0
+        try:
+            self.frame_per_action -= 1
+            if self.frameData.getEmptyFlag() or self.frameData.getRemainingFramesNumber() <= 0:
+                self.isGameJustStarted = True
+                return
+            if not self.isGameJustStarted:
+                self.frameData = self.simulator.simulate(self.frameData, self.player, None, None, 17)
+            else:
+                # this else is used only 1 time in first of round
+                self.isGameJustStarted = False
+                self.currentRoundNum = self.frameData.getRound()
+                self.R = 0
+                self.isFinishd = 0
 
-        if self.cc.getSkillFlag():
-            self.inputKey = self.cc.getSkillKey()
-            return
-        self.inputKey.empty()
-        self.cc.skillCancel()
+            if self.cc.getSkillFlag():
+                self.inputKey = self.cc.getSkillKey()
+                return
+            self.inputKey.empty()
+            self.cc.skillCancel()
 
-        if self.currentFrameNum == 14:
-            self.state = self.getObservation()
-            # self.DuelingDQN.setInitState(tuple(state))
-            self.setLastHp()
-            self.playAction(self.state)
+            if self.currentFrameNum == 14:
+                self.state = self.getObservation()
+                # self.DuelingDQN.setInitState(tuple(state))
+                self.setLastHp()
+                self.playAction(self.state)
 
-        elif self.currentFrameNum > 3550 and self.isFinishd == 0:
-            reward = self.makeReward(1)
-            state_ = self.getObservation()
-            self.DuelingDQN.store_transition(self.state, self.action, reward, state_)
-
-            self.playAction(state_)
-            self.isFinishd = 1
-            self.DuelingDQN.learn()
-
-        elif self.ableAction():
-            self.DuelingDQN.learn()
-            if self.frame_per_action <= 0:
-                reward = self.makeReward(0)
+            elif self.currentFrameNum > 3550 and self.isFinishd == 0:
+                reward = self.makeReward(1)
                 state_ = self.getObservation()
                 self.DuelingDQN.store_transition(self.state, self.action, reward, state_)
 
-                self.setLastHp()
                 self.playAction(state_)
-                self.state = state_
-                print("\n")
+                self.isFinishd = 1
+                self.DuelingDQN.learn()
 
-                self.frame_per_action = self.DuelingDQN.frame_per_action
+            elif self.ableAction():
+                self.DuelingDQN.learn()
+                if self.frame_per_action <= 0:
+                    reward = self.makeReward(0)
+                    state_ = self.getObservation()
+                    self.DuelingDQN.store_transition(self.state, self.action, reward, state_)
 
-        self.countProcess += 1
+                    self.setLastHp()
+                    self.playAction(state_)
+                    self.state = state_
+                    print("\n")
+
+                    self.frame_per_action = self.DuelingDQN.frame_per_action
+
+            self.countProcess += 1
+        except Exception as e:
+            print(e)
 
     # This part is mandatory
     class Java:

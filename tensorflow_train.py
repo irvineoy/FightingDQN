@@ -17,7 +17,7 @@ def start_game():
     print("Start game")
 
     # game = manager.createGame("ZEN", "ZEN", "tensorflow_agent", "MctsAi_ver4_nonDelay", GAME_NUM)
-    game = manager.createGame("ZEN", "ZEN", "tensorflow_agent", "Machete_ver4_nonDelay", GAME_NUM)
+    game = manager.createGame("ZEN", "ZEN", "tensorflow_agent", "Machete", GAME_NUM)
     manager.runGame(game)
 
     print("After game")
