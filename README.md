@@ -1,108 +1,17 @@
-﻿
-Here is how to get started quickly. If you need more infomation, please read below contents.
+# Applying Hybrid Reward Architecture to a Fighting Game AI
+### Introduction
+This project is the implementation of the model purposed by the paper published at the IEEE CIG conference (IEEE Conference on Computational Intelligence and Games, Aug 2018).
 
-1. Update FightingICE.jar
+Paper Link: https://ieeexplore.ieee.org/abstract/document/8490437
 
-2. Add py4j.jar into lib and set path on your eclipse
+### Abstract
+In this paper, we propose a method for implementing a competent fighting game AI using Hybrid Reward Architecture (HRA). In 2017, an AI using HRA developed by Seijen et al. achieved a perfect score of 999,990 in Ms. Pac-Man. HRA decomposes a reward function into multiple components and learns a separate value function for each component in the reward function. Due to reward decomposition, an optimal value function can be learned in the domain of Ms. Pac-Man. However, the number of actions in Ms. Pac-Man is only limited to four (Up, Down, Left, and Right), and till now whether HRA is also effective in other games with a larger number of actions is unclear. In this paper, we apply HRA and verify its effectiveness in a fighting game. For performance evaluation, we use FightingICE that has 40 actions and has been used as the game platform in the Fighting Game AI Competition at CIG since 2014. Our experimental results show that the proposed HRA AI, a new sample AI for the competition, is superior to non-HRA deep learning AIs and is competitive against other entries of the 2017 competition.
 
-3. Start the FightingICE with argument “—py4j”
+### The FighingICE game
+http://www.ice.ci.ritsumei.ac.jp/~ftgaic/index-1.html
 
-4. Execute Main~.py 
-	e.g.) python Main_PyAIvsPyAI.py -n 3
-	In this, case, you are able to do 3 games repeatedly.
-
-
+Fighting game is a very challenging and entertaining game genre that requires the player to decide an action to perform among many actions (56 actions in FightingICE) within a short response time (16.67 ms in this game). Our research questions are whether or not it is possible to realize general fighting game AIs and if so how to realize them. By general fighting game AIs, we mean those that are strong against any opponents -- AIs or human players -- at any play modes using any character data. Top AIs in our the most recent competition have shown that the answer to the first question might be "yes", but it might take some time in order to answer the second question. Please join us in a journey to seek those answers!
 
 
-//——————————————————————————————————————————————————————————————————//
-
-In FightingICE you can control the launching of games and the AIs in Python with PYJ4.
-You just need to use these arguments to launch the Java application.
-
---py4j --port PORT_NUMBER
-
-The port is optional, by default it's 4242.
-Now FightingICE is expecting that you launch the python application. (You can also directly launch the Java application from Python)
-
-Here is the base of the python code that connect to the gateway server (on port 4242) and get back the manager. 
-
-from py4j.java_gateway import JavaGateway, GatewayParameters, CallbackServerParameters, get_field
-gateway = JavaGateway(gateway_parameters=GatewayParameters(port=4242), callback_server_parameters=CallbackServerParameters());
-manager = gateway.entry_point
-
-The python AIs just use the same interface that the java's one (AIInterface)
-And you can create a basic AI like that.
-
-class KickAI(object):
-	def __init__(self, gateway):
-		self.gateway = gateway
-
-	def close(self):
-		pass
-	
-	# Please define this method when you use FightingICE version 3.20 or later
-	def roundEnd(self, p1Hp, p2Hp, frames):
-    	pass
-    	
-	# Please define this method when you use FightingICE version 4.00 or later
-	def getScreenData(self, screenData):
-    	pass
-
-	def getInformation(self, frameData):
-		# Getting the frame data of the current frame
-		self.frameData = frameData
-
-	def initialize(self, gameData, player):
-		# Initializng the command center, the simulator and some other things
-		self.inputKey = self.gateway.jvm.struct.Key()
-		self.frameData = self.gateway.jvm.struct.FrameData()
-		self.cc = self.gateway.jvm.aiinterface.CommandCenter()
-
-		self.player = player
-		self.gameData = gameData
-		self.simulator = self.gameData.getSimulator()
-
-		return 0
-
-	def input(self):
-		# Return the input for the current frame
-		return self.inputKey
-
-	def processing(self):
-		# Just compute the input for the current frame
-		if self.frameData.getEmptyFlag() or self.frameData.getRemainingTime() <= 0:
-			self.isGameJustStarted = True
-			return
-
-		self.cc.setFrameData(self.frameData, self.player)
-
-		if self.cc.getSkillFlag():
-			self.inputKey = self.cc.getSkillKey()
-			return
-
-		# Just spam kick
-		self.cc.commandCall("B")
-
-	# This part is mandatory
-	class Java:
-		implements = ["aiinterface.AIInterface"]
-
-Now that you have your AI, you have to register it to the manager like that.
-
-manager.registerAI("KickAI", KickAI(gateway))
-
-And with that you can just start a new game or a series of games.
-
-print("Start game")
-
-game = manager.createGame("ZEN", "ZEN", "Machete", "KickAI", 3)
-manager.runGame(game)
-
-print("After game")
-sys.stdout.flush()
-
-print("End of games")
-gateway.close_callback_server()
-gateway.close()
-
-The method runGame will just wait the end of the game before returning, and you can't launch multiple games in parrallel on the same Java application.
+### Contact
+Ouyang （irvineoy@163.com）
